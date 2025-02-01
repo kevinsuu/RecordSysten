@@ -1,0 +1,41 @@
+{
+    "companies": {
+        "3c391534-8aa0-4675-a4cf-8cb20f8d7e91": {
+            "name": "test",
+            "tax_id": "123",
+            "phone": "12312",
+            "address": "123",
+            "vehicles": {
+                "2786d577-ed87-4f70-a0bf-a325d6141d2f": {
+                    "plate": "123",
+                    "model": "aa",
+                    "type": "水泥攪拌車",
+                    "remarks": "bb",
+                    "records": [
+                        {
+                            "date": "2025-02-01",
+                            "items": [
+                                "車身清洗"
+                            ],
+                            "remarks": "a"
+                        },
+                        {
+                            "date": "2025-02-01",
+                            "items": [
+                                "車身清洗"
+                            ],
+                            "remarks": "b"
+                        },
+                        {
+                            "date": "2025-02-01",
+                            "items": [
+                                "輪胎清洗"
+                            ],
+                            "remarks": "c"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
