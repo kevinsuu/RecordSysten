@@ -1,0 +1,38 @@
+# Firebase 相關
+*.json
+firebase-credentials.json
+firebase-adminsdk.json
+serviceAccountKey.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env.bak/
+venv.bak/
+dist/
+
+# IDE 相關
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS 系統檔案
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 本地資料和日誌
+data/
+logs/
+*.log
+
+# 其他
+*.bak
+*.tmp
+*.temp
