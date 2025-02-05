@@ -11,9 +11,10 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QMessageBox, QLineEdit, QDateEdit, QDialog,
                             QFormLayout, QTextEdit, QListWidget, QCheckBox,
                             QListWidgetItem, QMenu, QScrollArea, QFileDialog,
-                            QStyle)
+                            QStyle, QInputDialog)
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont, QPalette, QColor, QIcon
+from database import Database
 
 class StyleSheet:
     MAIN_STYLE = """
@@ -450,6 +451,7 @@ class AddRecordDialog(QDialog):
         self.data = data
         self.current_company = current_company
         self.current_vehicle = current_vehicle
+        self.database = parent.database if parent else None
         self.wash_items = self.load_wash_items()
         self.setup_ui()
         
@@ -468,23 +470,31 @@ class AddRecordDialog(QDialog):
 
     def load_wash_items(self):
         try:
-            with open('data/wash_items.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            default_items = [
-                "引擎清洗",
-                "車身清洗",
-                "輪胎清洗",
-                "車斗清洗",
-                "內裝清洗"
-            ]
-            with open('data/wash_items.json', 'w', encoding='utf-8') as f:
-                json.dump(default_items, f, ensure_ascii=False, indent=4)
-            return default_items
+            if not self.database:
+                return []
+            # 從 Firebase 載入洗車項目
+            items = self.database.get_wash_items()
+            if not items:
+                default_items = [
+                    "引擎清洗",
+                    "車身清洗",
+                    "輪胎清洗",
+                    "車斗清洗",
+                    "內裝清洗"
+                ]
+                self.database.save_wash_items(default_items)
+                return default_items
+            return items
+        except Exception as e:
+            print(f"載入洗車項目時發生錯誤：{str(e)}")
+            return []
 
     def save_wash_items(self, items):
-        with open('data/wash_items.json', 'w', encoding='utf-8') as f:
-            json.dump(items, f, ensure_ascii=False, indent=4)
+        try:
+            if self.database:
+                self.database.save_wash_items(items)
+        except Exception as e:
+            print(f"儲存洗車項目時發生錯誤：{str(e)}")
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -791,6 +801,9 @@ class MainWindow(QMainWindow):
         self.setMinimumWidth(1200)
         self.setMinimumHeight(800)
         
+        # 初始化資料庫
+        self.database = Database()
+        
         # 先設置 UI
         self.setup_ui()
         
@@ -1010,21 +1023,18 @@ class MainWindow(QMainWindow):
 
     def load_data(self):
         try:
-            # 確保 data 資料夾存在
-            data_dir = Path('data')
-            data_dir.mkdir(exist_ok=True)
+            # 從 Firebase 載入資料
+            self.data = self.database.get_all_data()
             
-            data_file = data_dir / 'washing_records.json'
-            if data_file.exists():
-                with open(data_file, 'r', encoding='utf-8') as f:
-                    self.data = json.load(f)
-            else:
-                self.data = {"companies": {}}
-                self.save_data()
+            # 確保每個公司都有 vehicles 字典
+            if "companies" in self.data:
+                for company_id in self.data["companies"]:
+                    if "vehicles" not in self.data["companies"][company_id]:
+                        self.data["companies"][company_id]["vehicles"] = {}
                 
-        except (FileNotFoundError, json.JSONDecodeError):
+        except Exception as e:
+            QMessageBox.critical(self, "錯誤", f"載入資料時發生錯誤：{str(e)}")
             self.data = {"companies": {}}
-            self.save_data()
             
         # 更新下拉選單
         self.update_company_combo()
@@ -1034,14 +1044,11 @@ class MainWindow(QMainWindow):
         self.update_vehicle_combo()
 
     def save_data(self):
-        # 確保 data 資料夾存在
-        data_dir = Path('data')
-        data_dir.mkdir(exist_ok=True)
-        
-        # 儲存資料
-        data_file = data_dir / 'washing_records.json'
-        with open(data_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=4)
+        try:
+            # 儲存資料到 Firebase
+            self.database.save_data(self.data)
+        except Exception as e:
+            QMessageBox.critical(self, "錯誤", f"儲存資料時發生錯誤：{str(e)}")
 
     def add_record(self):
         # 創建新增記錄對話框，並傳入當前資料
@@ -1126,13 +1133,17 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def manage_wash_items(self):
-        dialog = WashItemManagerDialog(self, self.load_wash_items())
+        # 從 Firebase 載入洗車項目
+        wash_items = self.database.get_wash_items()
+        dialog = WashItemManagerDialog(self, wash_items)
         if dialog.exec():
-            self.save_wash_items(dialog.get_wash_items())
+            # 儲存到 Firebase
+            new_items = dialog.get_wash_items()
+            self.database.save_wash_items(new_items)
 
-    def save_wash_items(self, wash_items):
-        with open('data/wash_items.json', 'w', encoding='utf-8') as f:
-            json.dump(wash_items, f, ensure_ascii=False, indent=4)
+    def load_wash_items(self):
+        # 從 Firebase 載入洗車項目
+        return self.database.get_wash_items()
 
     def update_table(self):
         self.records_table.setRowCount(0)
