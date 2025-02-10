@@ -158,24 +158,26 @@ class MainWindow(QMainWindow):
 
         # 表格
         self.table = QTableWidget()
-        self.table.setColumnCount(8)  # 增加一列用於放置刪除按鈕
-        self.table.setHorizontalHeaderLabels(["日期", "公司", "車牌號碼", "車型", "種類", "服務項目", "備註", "操作"])
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels(["類型", "日期", "公司", "車牌號碼", "車型", "車輛種類", "服務項目", "備註", "操作"])
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)  # 操作列固定寬度
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # 類型
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # 日期
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # 公司
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)  # 車牌號碼
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)  # 車型
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)  # 種類
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # 服務項目
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)  # 備註
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)  # 操作列固定寬度
         header.setMinimumSectionSize(100)
-        header.resizeSection(0, 150)  # 日期
-        header.resizeSection(1, 150)  # 公司
-        header.resizeSection(2, 150)  # 車號
-        header.resizeSection(3, 150)  # 車型
-        header.resizeSection(4, 150)  # 種類
-        header.resizeSection(7, 100)  # 操作
+        header.resizeSection(0, 100)  # 類型
+        header.resizeSection(1, 150)  # 日期
+        header.resizeSection(2, 150)  # 公司
+        header.resizeSection(3, 150)  # 車號
+        header.resizeSection(4, 150)  # 車型
+        header.resizeSection(5, 150)  # 種類
+        header.resizeSection(8, 100)  # 操作
         self.table.verticalHeader().setVisible(False)
         self.table.setStyleSheet("""
             QTableWidget {
@@ -286,21 +288,15 @@ class MainWindow(QMainWindow):
             if "records" not in vehicle_data:
                 vehicle_data["records"] = []
             
-            # 確保校正項目資料被正確儲存
-            if "calibration_items" in record_data:
-                vehicle_data["records"].append({
-                    "date": record_data["date"],
-                    "items": record_data["items"],
-                    "remarks": record_data["remarks"],
-                    "calibration_items": record_data["calibration_items"]
-                })
-            else:
-                vehicle_data["records"].append({
-                    "date": record_data["date"],
-                    "items": record_data["items"],
-                    "remarks": record_data["remarks"],
-                    "calibration_items": []
-                })
+            # 建立新的記錄
+            new_record = {
+                "date": record_data["date"],
+                "items": record_data["items"],
+                "remarks": record_data["remarks"],
+                "payment_type": record_data["payment_type"]  # 添加應付/應收資訊
+            }
+            
+            vehicle_data["records"].append(new_record)
             
             # 儲存並更新
             self.save_data()
@@ -332,21 +328,30 @@ class MainWindow(QMainWindow):
             row = self.table.rowCount()
             self.table.insertRow(row)
             
+            # 顯示應付/應收狀態
+            payment_type = record.get("payment_type", "")
+            payment_type_text = ""
+            if payment_type == "payable":
+                payment_type_text = "應付廠商"
+            elif payment_type == "receivable":
+                payment_type_text = "應收廠商"
+            self.table.setItem(row, 0, QTableWidgetItem(payment_type_text))
+            
             # 設置日期
             date_item = QTableWidgetItem(record["date"])
-            self.table.setItem(row, 0, date_item)
+            self.table.setItem(row, 1, date_item)
             
             # 設置公司
             company_item = QTableWidgetItem(record["company"])
-            self.table.setItem(row, 1, company_item)
+            self.table.setItem(row, 2, company_item)
             
             # 設置車輛資訊
             vehicle_item = QTableWidgetItem(record["vehicle"]["plate"])
-            self.table.setItem(row, 2, vehicle_item)
+            self.table.setItem(row, 3, vehicle_item)
             
             # 設置其他欄位
-            self.table.setItem(row, 3, QTableWidgetItem(record["vehicle"]["model"]))
-            self.table.setItem(row, 4, QTableWidgetItem(record["vehicle"]["type"]))
+            self.table.setItem(row, 4, QTableWidgetItem(record["vehicle"]["model"]))
+            self.table.setItem(row, 5, QTableWidgetItem(record["vehicle"]["type"]))
             
             # 處理項目顯示
             items_text = []
@@ -356,14 +361,13 @@ class MainWindow(QMainWindow):
                 else:
                     items_text.append(item)
             
-            self.table.setItem(row, 5, QTableWidgetItem(", ".join(items_text)))
-            
-            self.table.setItem(row, 6, QTableWidgetItem(record.get("remarks", "")))
+            self.table.setItem(row, 6, QTableWidgetItem(", ".join(items_text)))
+            self.table.setItem(row, 7, QTableWidgetItem(record.get("remarks", "")))
             
             # 添加刪除按鈕
             delete_btn = QPushButton("刪除")
             delete_btn.clicked.connect(lambda checked, r=row: self.delete_record(r))
-            self.table.setCellWidget(row, 7, delete_btn)
+            self.table.setCellWidget(row, 8, delete_btn)
 
     def delete_record(self, row):
         """刪除記錄"""
@@ -377,9 +381,9 @@ class MainWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             # 從表格中獲取公司和車輛ID
-            company_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
-            vehicle_id = self.table.item(row, 2).data(Qt.ItemDataRole.UserRole)
-            date_str = self.table.item(row, 0).text()
+            company_id = self.table.item(row, 2).data(Qt.ItemDataRole.UserRole)
+            vehicle_id = self.table.item(row, 3).data(Qt.ItemDataRole.UserRole)
+            date_str = self.table.item(row, 1).text()
             
             # 找到並刪除對應的記錄
             vehicle_records = self.data["companies"][company_id]["vehicles"][vehicle_id].get("records", [])
@@ -401,7 +405,7 @@ class MainWindow(QMainWindow):
             ws.title = "洗車紀錄"
             
             # 寫入標題
-            headers = ["日期", "公司", "車牌號碼", "車型", "種類", "服務項目", "備註"]
+            headers = ["類型", "日期", "公司", "車牌號碼", "車型", "種類", "服務項目", "備註"]
             for col, header in enumerate(headers, 1):
                 ws.cell(row=1, column=col, value=header)
             
@@ -458,15 +462,15 @@ class MainWindow(QMainWindow):
             hide = False
             
             # 檢查日期
-            date_str = self.table.item(row, 0).text()
+            date_str = self.table.item(row, 1).text()
             record_date = QDate.fromString(date_str, "yyyy/MM/dd")
             if record_date < QDate.fromString(start_date, "yyyy-MM-dd") or record_date > QDate.fromString(end_date, "yyyy-MM-dd"):
                 hide = True
             
             # 檢查搜尋文字
             if not hide and search_text:
-                items_text = self.table.item(row, 5).text().lower()  # 服務項目
-                remarks_text = self.table.item(row, 6).text().lower()  # 備註
+                items_text = self.table.item(row, 6).text().lower()  # 服務項目
+                remarks_text = self.table.item(row, 7).text().lower()  # 備註
                 if search_text not in items_text and search_text not in remarks_text:
                     hide = True
             
