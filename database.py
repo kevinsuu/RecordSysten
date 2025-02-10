@@ -92,3 +92,18 @@ class Database:
         except Exception as e:
             print(f"讀取資料失敗：{e}")
             return {"companies": {}}
+
+    def delete_record(self, company_id, vehicle_id, record_index):
+        """刪除特定記錄"""
+        def _delete():
+            # 構建記錄的路徑
+            record_path = f'companies/{company_id}/vehicles/{vehicle_id}/records/{record_index}'
+            # 從 Firebase 中刪除記錄
+            self.root.child(record_path).delete()
+            return True
+        
+        try:
+            return self._retry_operation(_delete)
+        except Exception as e:
+            print(f"刪除記錄失敗：{e}")
+            return False

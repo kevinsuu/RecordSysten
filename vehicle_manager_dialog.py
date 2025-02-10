@@ -27,7 +27,7 @@ class VehicleManagerDialog(QDialog):
     def save_and_update(self):
         if hasattr(self.parent, 'save_data'):
             self.parent.save_data()
-        self.parent.update_vehicles()
+        self.parent.update_vehicle_combo()
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -55,7 +55,10 @@ class VehicleManagerDialog(QDialog):
         self.list_widget.clear()
         vehicles = self.data["companies"][self.company_id].get("vehicles", {})
         for vehicle_id, vehicle_data in vehicles.items():
-            item = QListWidgetItem(f"{vehicle_data['plate']} ({vehicle_data['type']})")
+            display_text = f"{vehicle_data['plate']} ({vehicle_data['type']})"
+            if vehicle_data.get("remarks"):
+                display_text += f" - {vehicle_data['remarks']}"
+            item = QListWidgetItem(display_text)
             item.setData(Qt.UserRole, vehicle_id)
             self.list_widget.addItem(item)
 
@@ -84,6 +87,8 @@ class VehicleManagerDialog(QDialog):
         dialog = VehicleDialog(self, vehicle_data)
         if dialog.exec():
             updated_data = dialog.get_vehicle_data()
+            if "records" in vehicle_data:
+                updated_data["records"] = vehicle_data["records"]
             self.data["companies"][self.company_id]["vehicles"][vehicle_id].update(updated_data)
             self.load_vehicles()
             self.save_and_update()
