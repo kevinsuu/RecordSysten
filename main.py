@@ -168,7 +168,7 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)  # 允許使用者調整寬度
         
         # 設置預設寬度
-        header.resizeSection(0, 60)  # 類型
+        header.resizeSection(0, 80)  # 類型
         header.resizeSection(1, 100)  # 日期
         header.resizeSection(2, 100)  # 公司
         header.resizeSection(3, 150)  # 車牌號碼
@@ -241,7 +241,14 @@ class MainWindow(QMainWindow):
         """更新公司下拉選單"""
         self.company_combo.clear()
         self.company_combo.addItem("全部公司", "all")
-        for company_id, company_data in self.data["companies"].items():
+        
+        # 根據 sort_index 排序公司
+        sorted_companies = sorted(
+            self.data["companies"].items(),
+            key=lambda x: x[1].get("sort_index", float('inf'))
+        )
+        
+        for company_id, company_data in sorted_companies:
             self.company_combo.addItem(company_data["name"], company_id)
 
     def update_vehicle_combo(self):
@@ -251,7 +258,12 @@ class MainWindow(QMainWindow):
         company_id = self.company_combo.currentData()
         if company_id and company_id != "all":
             vehicles = self.data["companies"][company_id].get("vehicles", {})
-            for vehicle_id, vehicle_data in vehicles.items():
+            # 根據 sort_index 排序車輛
+            sorted_vehicles = sorted(
+                vehicles.items(),
+                key=lambda x: x[1].get("sort_index", float('inf'))
+            )
+            for vehicle_id, vehicle_data in sorted_vehicles:
                 self.vehicle_combo.addItem(f"{vehicle_data['plate']} ({vehicle_data['type']})", vehicle_id)
 
     def manage_companies(self):
@@ -461,17 +473,36 @@ class MainWindow(QMainWindow):
             ws.title = "洗車紀錄"
             
             # 寫入標題
-            headers = ["類型", "日期", "公司", "車牌號碼", "種類", "服務項目", "備註"]
+            headers = ["類型", "日期", "公司", "車牌號碼", "車輛種類", "服務項目", "備註", "金額總計"]
             for col, header in enumerate(headers, 1):
                 ws.cell(row=1, column=col, value=header)
             
             # 寫入資料
-            row = 2
-            for i in range(self.table.rowCount()):
-                for j in range(self.table.columnCount()):
-                    item = self.table.item(i, j)
-                    ws.cell(row=row, column=j+1, value=item.text() if item else "")
-                row += 1
+            excel_row = 2
+            for table_row in range(self.table.rowCount()):
+                # 獲取該行的服務項目
+                service_items = self.table.item(table_row, 5).text().split('\n')
+                first_item = True
+                
+                # 對每個服務項目創建一行
+                for item in service_items:
+                    # 如果是第一個項目，寫入所有欄位
+                    if first_item:
+                        for col in range(self.table.columnCount() - 1):  # 排除操作按鈕欄
+                            if col == 5:  # 服務項目欄
+                                ws.cell(row=excel_row, column=col + 1, value=item.strip())
+                            else:
+                                cell_item = self.table.item(table_row, col)
+                                if cell_item:
+                                    ws.cell(row=excel_row, column=col + 1, value=cell_item.text())
+                        first_item = False
+                    else:
+                        # 如果不是第一個項目，只寫入服務項目
+                        ws.cell(row=excel_row, column=6, value=item.strip())
+                    excel_row += 1
+                
+                # 在每個記錄之間添加一個空行
+                excel_row += 1
             
             # 調整欄寬
             for col in ws.columns:
@@ -484,11 +515,15 @@ class MainWindow(QMainWindow):
                         pass
                 ws.column_dimensions[col[0].column_letter].width = max_length + 2
             
+            # 根據當前時間生成檔案名稱
+            current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"洗車紀錄_{current_time}.xlsx"
+            
             # 選擇儲存位置
             file_path, _ = QFileDialog.getSaveFileName(
                 self,
                 "儲存 Excel 檔案",
-                "",
+                default_filename,  # 預設檔案名稱
                 "Excel 檔案 (*.xlsx)"
             )
             
@@ -526,10 +561,7 @@ class MainWindow(QMainWindow):
                 record_date = QDate.fromString(date_str, "yyyy/MM/dd")  # 如果無效，嘗試 yyyy/MM/dd 格式
             
             if record_date < start_date or record_date > end_date:
-                hide = True
-            else:
-                print(f"日期在範圍內")
-            
+                hide = True            
             # 檢查搜尋文字
             if not hide and search_text:
                 found = False

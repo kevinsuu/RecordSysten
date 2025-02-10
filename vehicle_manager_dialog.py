@@ -25,25 +25,47 @@ class VehicleManagerDialog(QDialog):
         self.load_vehicles()
 
     def save_and_update(self):
+        """儲存資料並更新介面"""
+        # 更新車輛順序
+        vehicles = {}
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            vehicle_id = item.data(Qt.UserRole)
+            vehicles[vehicle_id] = self.data["companies"][self.company_id]["vehicles"][vehicle_id]
+            # 添加排序索引
+            vehicles[vehicle_id]["sort_index"] = i
+        
+        # 更新資料
+        self.data["companies"][self.company_id]["vehicles"] = vehicles
+        
         if hasattr(self.parent, 'save_data'):
             self.parent.save_data()
-        self.parent.update_vehicle_combo()
+        if hasattr(self.parent, 'update_vehicle_combo'):
+            self.parent.update_vehicle_combo()
+        if hasattr(self.parent, 'update_table'):
+            self.parent.update_table()
+        self.load_vehicles()
 
     def setup_ui(self):
         layout = QVBoxLayout()
         layout.setSpacing(20)
 
+        # 車輛列表
         self.list_widget = QListWidget()
+        self.list_widget.setDragDropMode(QListWidget.DragDropMode.InternalMove)  # 允許拖放排序
         self.list_widget.itemClicked.connect(self.vehicle_selected)
         layout.addWidget(self.list_widget)
 
+        # 按鈕區域
         button_layout = QHBoxLayout()
         add_btn = QPushButton("新增車輛")
         edit_btn = QPushButton("編輯車輛")
         delete_btn = QPushButton("刪除車輛")
+        
         add_btn.clicked.connect(self.add_vehicle)
         edit_btn.clicked.connect(self.edit_vehicle)
         delete_btn.clicked.connect(self.delete_vehicle)
+        
         button_layout.addWidget(add_btn)
         button_layout.addWidget(edit_btn)
         button_layout.addWidget(delete_btn)
@@ -51,10 +73,25 @@ class VehicleManagerDialog(QDialog):
 
         self.setLayout(layout)
 
+        # 連接拖放完成信號
+        self.list_widget.model().rowsMoved.connect(self.on_rows_moved)
+
+    def on_rows_moved(self, parent, start, end, destination, row):
+        """當項目被拖放時觸發"""
+        self.save_and_update()
+
     def load_vehicles(self):
+        """載入車輛列表"""
         self.list_widget.clear()
         vehicles = self.data["companies"][self.company_id].get("vehicles", {})
-        for vehicle_id, vehicle_data in vehicles.items():
+        
+        # 根據 sort_index 排序車輛
+        sorted_vehicles = sorted(
+            vehicles.items(),
+            key=lambda x: x[1].get("sort_index", float('inf'))
+        )
+        
+        for vehicle_id, vehicle_data in sorted_vehicles:
             display_text = f"{vehicle_data['plate']} ({vehicle_data['type']})"
             if vehicle_data.get("remarks"):
                 display_text += f" - 車輛備註：{vehicle_data['remarks']}"

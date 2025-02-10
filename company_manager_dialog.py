@@ -25,6 +25,18 @@ class CompanyManagerDialog(QDialog):
 
     def save_and_update(self):
         """儲存資料並更新介面"""
+        # 更新公司順序
+        companies = {}
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            company_id = item.data(Qt.UserRole)
+            companies[company_id] = self.data["companies"][company_id]
+            # 添加排序索引
+            companies[company_id]["sort_index"] = i
+        
+        # 更新資料
+        self.data["companies"] = companies
+        
         if hasattr(self.parent, 'save_data'):
             self.parent.save_data()
         if hasattr(self.parent, 'update_company_combo'):
@@ -41,6 +53,7 @@ class CompanyManagerDialog(QDialog):
 
         # 公司列表
         self.list_widget = QListWidget()
+        self.list_widget.setDragDropMode(QListWidget.DragDropMode.InternalMove)  # 允許拖放排序
         self.list_widget.itemClicked.connect(self.company_selected)
         layout.addWidget(self.list_widget)
 
@@ -49,24 +62,36 @@ class CompanyManagerDialog(QDialog):
         add_btn = QPushButton("新增公司")
         edit_btn = QPushButton("編輯公司")
         delete_btn = QPushButton("刪除公司")
+        
         add_btn.clicked.connect(self.add_company)
         edit_btn.clicked.connect(self.edit_company)
         delete_btn.clicked.connect(self.delete_company)
+        
         button_layout.addWidget(add_btn)
         button_layout.addWidget(edit_btn)
         button_layout.addWidget(delete_btn)
         layout.addLayout(button_layout)
 
-        # 確定和取消按鈕
-        dialog_buttons = QHBoxLayout()
-
-        layout.addLayout(dialog_buttons)
-
         self.setLayout(layout)
 
+        # 連接拖放完成信號
+        self.list_widget.model().rowsMoved.connect(self.on_rows_moved)
+
+    def on_rows_moved(self, parent, start, end, destination, row):
+        """當項目被拖放時觸發"""
+        self.save_and_update()
+
     def load_companies(self):
+        """載入公司列表"""
         self.list_widget.clear()
-        for company_id, company_data in self.data["companies"].items():
+        
+        # 根據 sort_index 排序公司
+        sorted_companies = sorted(
+            self.data["companies"].items(),
+            key=lambda x: x[1].get("sort_index", float('inf'))
+        )
+        
+        for company_id, company_data in sorted_companies:
             item = QListWidgetItem(f"{company_data['name']} ")
             item.setData(Qt.UserRole, company_id)
             self.list_widget.addItem(item)
