@@ -73,19 +73,35 @@ class AddRecordDialog(QDialog):
         layout = QVBoxLayout()
         layout.setSpacing(20)
 
+        # 使用 QFormLayout 統一管理所有表單項目
+        form_layout = QFormLayout()
+        form_layout.setSpacing(20)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        form_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # 類型選擇（應付/應收廠商）
+        type_layout = QHBoxLayout()
+        self.receivable_checkbox = QCheckBox("應收廠商")
+        self.payable_checkbox = QCheckBox("應付廠商")
+        
+        # 確保只能選擇其中一個
+        self.receivable_checkbox.stateChanged.connect(lambda state: self.payable_checkbox.setChecked(False) if state == Qt.CheckState.Checked else None)
+        self.payable_checkbox.stateChanged.connect(lambda state: self.receivable_checkbox.setChecked(False) if state == Qt.CheckState.Checked else None)
+        
+        # 預設勾選應收廠商
+        self.receivable_checkbox.setChecked(True)
+        type_layout.addWidget(self.receivable_checkbox)
+        type_layout.addWidget(self.payable_checkbox)
+        form_layout.addRow("類型:", type_layout)
+
         # 日期選擇
         date_layout = QHBoxLayout()
         self.date_edit = QDateEdit()
         self.date_edit.setDisplayFormat("yyyy/MM/dd")
         self.date_edit.setDate(QDate.currentDate())
         self.date_edit.setCalendarPopup(True)
-        date_layout.addWidget(QLabel("日期:"))
         date_layout.addWidget(self.date_edit)
-        date_layout.addStretch()
-        layout.addLayout(date_layout)
-
-        # 公司和車輛選擇
-        selection_layout = QFormLayout()
+        form_layout.addRow("日期:", date_layout)
         
         # 公司選擇
         company_layout = QHBoxLayout()
@@ -108,7 +124,7 @@ class AddRecordDialog(QDialog):
         manage_company_btn.setFixedSize(24, 24)
         manage_company_btn.clicked.connect(self.manage_companies)
         company_layout.addWidget(manage_company_btn)
-        selection_layout.addRow("公司:", company_layout)
+        form_layout.addRow("公司:", company_layout)
         
         # 車輛選擇
         vehicle_layout = QHBoxLayout()
@@ -131,9 +147,14 @@ class AddRecordDialog(QDialog):
         manage_vehicle_btn.setFixedSize(24, 24)
         manage_vehicle_btn.clicked.connect(self.manage_vehicles)
         vehicle_layout.addWidget(manage_vehicle_btn)
-        selection_layout.addRow("車輛:", vehicle_layout)
-        
-        layout.addLayout(selection_layout)
+        form_layout.addRow("車輛:", vehicle_layout)
+
+        # 設置統一的寬度
+        self.date_edit.setFixedWidth(200)
+        self.company_combo.setFixedWidth(200)
+        self.vehicle_combo.setFixedWidth(200)
+
+        layout.addLayout(form_layout)
 
         # 洗車項目
         items_header = QHBoxLayout()
@@ -298,12 +319,20 @@ class AddRecordDialog(QDialog):
             except ValueError:
                 pass
 
+        # 獲取應付/應收狀態
+        payment_type = None
+        if self.payable_checkbox.isChecked():
+            payment_type = "payable"
+        elif self.receivable_checkbox.isChecked():
+            payment_type = "receivable"
+
         record_data = {
             "company_id": self.company_combo.currentData(),
             "vehicle_id": self.vehicle_combo.currentData(),
             "date": self.date_edit.date().toString("yyyy-MM-dd"),
             "items": items,
-            "remarks": self.remarks_edit.toPlainText()
+            "remarks": self.remarks_edit.toPlainText(),
+            "payment_type": payment_type
         }
         return record_data
 
