@@ -57,7 +57,7 @@ class VehicleManagerDialog(QDialog):
         for vehicle_id, vehicle_data in vehicles.items():
             display_text = f"{vehicle_data['plate']} ({vehicle_data['type']})"
             if vehicle_data.get("remarks"):
-                display_text += f" - {vehicle_data['remarks']}"
+                display_text += f" - 車輛備註：{vehicle_data['remarks']}"
             item = QListWidgetItem(display_text)
             item.setData(Qt.UserRole, vehicle_id)
             self.list_widget.addItem(item)

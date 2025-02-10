@@ -321,11 +321,23 @@ class MainWindow(QMainWindow):
         """更新表格內容"""
         self.table.setRowCount(0)
         
+        # 獲取當前選擇的公司和車輛
+        selected_company_id = self.company_combo.currentData()
+        selected_vehicle_id = self.vehicle_combo.currentData()
+        
         # 獲取記錄
         records = []
         for company_id, company_data in self.data["companies"].items():
+            # 如果選擇了特定公司，只顯示該公司的記錄
+            if selected_company_id != "all" and company_id != selected_company_id:
+                continue
+                
             company_name = company_data["name"]
             for vehicle_id, vehicle_data in company_data.get("vehicles", {}).items():
+                # 如果選擇了特定車輛，只顯示該車輛的記錄
+                if selected_vehicle_id != "all" and vehicle_id != selected_vehicle_id:
+                    continue
+                    
                 for record in vehicle_data.get("records", []):
                     record_with_info = record.copy()
                     record_with_info["company"] = company_name
@@ -360,9 +372,14 @@ class MainWindow(QMainWindow):
             # 設置車牌號碼
             vehicle_item = QTableWidgetItem(record["vehicle"]["plate"])
             vehicle_item.setData(Qt.ItemDataRole.UserRole, record["vehicle_id"])
-            if record["vehicle"].get("remarks"):
-                vehicle_item.setToolTip(record["vehicle"]["remarks"])
+            remarks = record["vehicle"].get("remarks", "")
+            if remarks:
+                vehicle_item.setToolTip(f"備註：{remarks}")
             self.table.setItem(row, 3, vehicle_item)
+            
+            # 確保表格項目可以顯示工具提示
+            self.table.setMouseTracking(True)  # 啟用滑鼠追蹤
+            self.table.viewport().setMouseTracking(True)
             
             # 設置車輛種類
             self.table.setItem(row, 4, QTableWidgetItem(record["vehicle"]["type"]))
@@ -493,30 +510,62 @@ class MainWindow(QMainWindow):
 
     def filter_records(self):
         """根據搜尋條件過濾記錄"""
-        search_text = self.search_input.text().lower()
-        start_date = self.start_date.date().toString("yyyy-MM-dd")
-        end_date = self.end_date.date().toString("yyyy-MM-dd")
+        search_text = self.search_input.text().lower().strip()
+        
+        # 獲取日期範圍
+        start_date = self.start_date.date()
+        end_date = self.end_date.date()
 
         for row in range(self.table.rowCount()):
             hide = False
             
             # 檢查日期
             date_str = self.table.item(row, 1).text()
-            record_date = QDate.fromString(date_str, "yyyy/MM/dd")
-            if record_date < QDate.fromString(start_date, "yyyy-MM-dd") or record_date > QDate.fromString(end_date, "yyyy-MM-dd"):
+            record_date = QDate.fromString(date_str, "yyyy-MM-dd")  # 先嘗試 yyyy-MM-dd 格式
+            if not record_date.isValid():
+                record_date = QDate.fromString(date_str, "yyyy/MM/dd")  # 如果無效，嘗試 yyyy/MM/dd 格式
+            
+            if record_date < start_date or record_date > end_date:
                 hide = True
+            else:
+                print(f"日期在範圍內")
             
             # 檢查搜尋文字
             if not hide and search_text:
-                items_text = self.table.item(row, 5).text().lower()  # 服務項目
-                remarks_text = self.table.item(row, 6).text().lower()  # 備註
-                if search_text not in items_text and search_text not in remarks_text:
+                found = False
+                
+                # 檢查每個欄位
+                for col in range(self.table.columnCount() - 1):  # 排除最後一欄（操作按鈕）
+                    item = self.table.item(row, col)
+                    if not item:
+                        continue
+                        
+                    cell_text = item.text().lower()
+                    
+                    # 特別處理服務項目欄位
+                    if col == 5:  # 服務項目欄位
+                        # 分割每一行並檢查
+                        lines = cell_text.split('\n')
+                        for line in lines:
+                            # 移除 "•" 和金額部分，但保留完整的項目名稱
+                            service = line.replace('• ', '').split(' - $')[0].strip().lower()
+                            if search_text in service:
+                                found = True
+                                break
+                    else:
+                        # 其他欄位直接檢查
+                        if search_text in cell_text:
+                            found = True
+                            break
+                
+                if not found:
                     hide = True
             
+            # 設置行的顯示/隱藏狀態
             self.table.setRowHidden(row, hide)
 
     def clear_search(self):
-        """清除所有搜尋條件"""
+        """清除所有搜尋條件並重置顯示"""
         # 重置搜尋文字
         self.search_input.clear()
         
@@ -524,14 +573,16 @@ class MainWindow(QMainWindow):
         self.start_date.setDate(QDate.currentDate().addYears(-1))
         self.end_date.setDate(QDate.currentDate())
         
-        # 重置公司選擇為「全部公司」
-        self.company_combo.setCurrentIndex(0)
+        # 重置公司和車輛選擇
+        self.company_combo.setCurrentText("全部公司")
+        self.vehicle_combo.setCurrentText("全部車輛")
         
-        # 重置車輛選擇為「全部車輛」
-        self.vehicle_combo.setCurrentIndex(0)
-        
-        # 更新表格
+        # 重新載入所有資料
         self.update_table()
+        
+        # 確保所有行都顯示
+        for row in range(self.table.rowCount()):
+            self.table.setRowHidden(row, False)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
