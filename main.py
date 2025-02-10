@@ -158,26 +158,31 @@ class MainWindow(QMainWindow):
 
         # 表格
         self.table = QTableWidget()
-        self.table.setColumnCount(9)
-        self.table.setHorizontalHeaderLabels(["類型", "日期", "公司", "車牌號碼", "車型", "車輛種類", "服務項目", "備註", "操作"])
+        self.table.setColumnCount(9)  # 減少一欄
+        self.table.setHorizontalHeaderLabels(["類型", "日期", "公司", "車牌號碼", "車輛種類", "服務項目", "備註", "金額總計", "操作"])
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)  # 禁止編輯
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # 類型
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # 日期
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # 公司
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)  # 車牌號碼
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)  # 車型
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)  # 種類
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # 服務項目
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)  # 備註
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)  # 操作列固定寬度
-        header.setMinimumSectionSize(100)
-        header.resizeSection(0, 100)  # 類型
-        header.resizeSection(1, 150)  # 日期
-        header.resizeSection(2, 150)  # 公司
-        header.resizeSection(3, 150)  # 車號
-        header.resizeSection(4, 150)  # 車型
-        header.resizeSection(5, 150)  # 種類
+        
+        # 設置表格標題可調整大小
+        header.setSectionsMovable(True)  # 允許移動欄位
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)  # 允許使用者調整寬度
+        
+        # 設置預設寬度
+        header.resizeSection(0, 60)  # 類型
+        header.resizeSection(1, 100)  # 日期
+        header.resizeSection(2, 100)  # 公司
+        header.resizeSection(3, 150)  # 車牌號碼
+        header.resizeSection(4, 100)  # 車輛種類
+        header.resizeSection(5, 300)  # 服務項目
+        header.resizeSection(7, 100)  # 金額總計
         header.resizeSection(8, 100)  # 操作
+        
+        # 設置最小寬度限制
+        header.setMinimumSectionSize(60)
+        
+        # 設置服務項目和備註欄位可以自動延展
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)  # 服務項目
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # 備註
         self.table.verticalHeader().setVisible(False)
         self.table.setStyleSheet("""
             QTableWidget {
@@ -191,8 +196,14 @@ class MainWindow(QMainWindow):
                 border-right: 1px solid #ccc;
                 border-bottom: 1px solid #ccc;
             }
+            QTableWidget::item {
+                padding: 5px;
+                border-bottom: 1px solid #eee;
+            }
         """)
         self.table.setAlternatingRowColors(True)
+        self.table.setWordWrap(True)  # 啟用自動換行
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)  # 自動調整行高
         layout.addWidget(self.table)
         
         # 設置事件處理
@@ -343,31 +354,47 @@ class MainWindow(QMainWindow):
             
             # 設置公司
             company_item = QTableWidgetItem(record["company"])
+            company_item.setData(Qt.ItemDataRole.UserRole, record["company_id"])
             self.table.setItem(row, 2, company_item)
             
-            # 設置車輛資訊
+            # 設置車牌號碼
             vehicle_item = QTableWidgetItem(record["vehicle"]["plate"])
+            vehicle_item.setData(Qt.ItemDataRole.UserRole, record["vehicle_id"])
+            if record["vehicle"].get("remarks"):
+                vehicle_item.setToolTip(record["vehicle"]["remarks"])
             self.table.setItem(row, 3, vehicle_item)
             
-            # 設置其他欄位
-            self.table.setItem(row, 4, QTableWidgetItem(record["vehicle"]["model"]))
-            self.table.setItem(row, 5, QTableWidgetItem(record["vehicle"]["type"]))
+            # 設置車輛種類
+            self.table.setItem(row, 4, QTableWidgetItem(record["vehicle"]["type"]))
             
-            # 處理項目顯示
+            # 處理項目顯示和計算總金額
             items_text = []
+            total_amount = 0
             for item in record["items"]:
                 if isinstance(item, dict):
-                    items_text.append(f"{item['name']} - ${item['price']}")
+                    items_text.append(f"• {item['name']} - ${item['price']}")
+                    total_amount += item['price']
                 else:
-                    items_text.append(item)
+                    items_text.append(f"• {item}")
             
-            self.table.setItem(row, 6, QTableWidgetItem(", ".join(items_text)))
-            self.table.setItem(row, 7, QTableWidgetItem(record.get("remarks", "")))
+            # 使用換行符號連接項目
+            self.table.setItem(row, 5, QTableWidgetItem("\n".join(items_text)))
+            
+            # 設置備註
+            self.table.setItem(row, 6, QTableWidgetItem(record.get("remarks", "")))
+            
+            # 設置金額總計
+            total_amount_item = QTableWidgetItem(f"${total_amount:,}")
+            total_amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(row, 7, total_amount_item)
             
             # 添加刪除按鈕
             delete_btn = QPushButton("刪除")
             delete_btn.clicked.connect(lambda checked, r=row: self.delete_record(r))
             self.table.setCellWidget(row, 8, delete_btn)
+            
+            # 調整該行的高度以適應多行內容
+            self.table.resizeRowToContents(row)
 
     def delete_record(self, row):
         """刪除記錄"""
@@ -380,21 +407,33 @@ class MainWindow(QMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            # 從表格中獲取公司和車輛ID
-            company_id = self.table.item(row, 2).data(Qt.ItemDataRole.UserRole)
-            vehicle_id = self.table.item(row, 3).data(Qt.ItemDataRole.UserRole)
-            date_str = self.table.item(row, 1).text()
-            
-            # 找到並刪除對應的記錄
-            vehicle_records = self.data["companies"][company_id]["vehicles"][vehicle_id].get("records", [])
-            for i, record in enumerate(vehicle_records):
-                if record["date"] == date_str.replace("/", "-"):
-                    vehicle_records.pop(i)
-                    break
-            
-            # 儲存並更新表格
-            self.save_data()
-            self.update_table()
+            try:
+                # 從表格中獲取公司和車輛ID
+                company_id = self.table.item(row, 2).data(Qt.ItemDataRole.UserRole)
+                vehicle_id = self.table.item(row, 3).data(Qt.ItemDataRole.UserRole)
+                date_str = self.table.item(row, 1).text()
+                
+                if not company_id or not vehicle_id:
+                    QMessageBox.warning(self, "錯誤", "無法獲取記錄資訊")
+                    return
+                
+                # 找到並刪除對應的記錄
+                vehicle_records = self.data["companies"][company_id]["vehicles"][vehicle_id].get("records", [])
+                for i, record in enumerate(vehicle_records):
+                    if record["date"] == date_str:
+                        # 從本地數據中刪除
+                        vehicle_records.pop(i)
+                        # 從 Firebase 中刪除
+                        self.database.delete_record(company_id, vehicle_id, i)
+                        break
+                
+                # 儲存並更新表格
+                self.save_data()
+                self.update_table()
+                QMessageBox.information(self, "成功", "記錄已成功刪除！")
+                
+            except Exception as e:
+                QMessageBox.warning(self, "錯誤", f"刪除記錄時發生錯誤：{str(e)}")
 
     def export_excel(self):
         """匯出資料到 Excel"""
@@ -405,7 +444,7 @@ class MainWindow(QMainWindow):
             ws.title = "洗車紀錄"
             
             # 寫入標題
-            headers = ["類型", "日期", "公司", "車牌號碼", "車型", "種類", "服務項目", "備註"]
+            headers = ["類型", "日期", "公司", "車牌號碼", "種類", "服務項目", "備註"]
             for col, header in enumerate(headers, 1):
                 ws.cell(row=1, column=col, value=header)
             
@@ -469,8 +508,8 @@ class MainWindow(QMainWindow):
             
             # 檢查搜尋文字
             if not hide and search_text:
-                items_text = self.table.item(row, 6).text().lower()  # 服務項目
-                remarks_text = self.table.item(row, 7).text().lower()  # 備註
+                items_text = self.table.item(row, 5).text().lower()  # 服務項目
+                remarks_text = self.table.item(row, 6).text().lower()  # 備註
                 if search_text not in items_text and search_text not in remarks_text:
                     hide = True
             

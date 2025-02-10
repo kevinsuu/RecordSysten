@@ -26,9 +26,6 @@ class VehicleDialog(QDialog):
         self.plate_edit = QLineEdit()
         self.plate_edit.setPlaceholderText("請輸入車牌號碼")
         layout.addRow("車牌號碼:", self.plate_edit)
-        self.model_edit = QLineEdit()
-        self.model_edit.setPlaceholderText("請輸入車型")
-        layout.addRow("車型:", self.model_edit)
         self.type_combo = QComboBox()
         self.type_combo.addItems(["水泥攪拌車", "大貨車", "連結車", "其他"])
         layout.addRow("種類:", self.type_combo)
@@ -48,7 +45,6 @@ class VehicleDialog(QDialog):
 
     def load_vehicle_data(self):
         self.plate_edit.setText(self.vehicle_data.get("plate", ""))
-        self.model_edit.setText(self.vehicle_data.get("model", ""))
         type_index = self.type_combo.findText(self.vehicle_data.get("type", ""))
         if type_index >= 0:
             self.type_combo.setCurrentIndex(type_index)
@@ -57,8 +53,6 @@ class VehicleDialog(QDialog):
     def get_vehicle_data(self):
         return {
             "plate": self.plate_edit.text(),
-            "model": self.model_edit.text(),
             "type": self.type_combo.currentText(),
-            "remarks": self.remarks_edit.toPlainText(),
-            "records": []
+            "remarks": self.remarks_edit.toPlainText()
         }

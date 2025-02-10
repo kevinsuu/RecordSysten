@@ -25,11 +25,15 @@ class CompanyManagerDialog(QDialog):
 
     def save_and_update(self):
         """儲存資料並更新介面"""
-        self.parent().data = self.data
-        self.parent().save_data()
-        if hasattr(self.parent(), 'update_table'):
-            self.parent().update_table()
-        self.update_company_list()
+        if hasattr(self.parent, 'save_data'):
+            self.parent.save_data()
+        if hasattr(self.parent, 'update_company_combo'):
+            self.parent.update_company_combo()
+        if hasattr(self.parent, 'update_vehicle_combo'):
+            self.parent.update_vehicle_combo()
+        if hasattr(self.parent, 'update_table'):
+            self.parent.update_table()
+        self.load_companies()
 
     def setup_ui(self):
         layout = QVBoxLayout()
