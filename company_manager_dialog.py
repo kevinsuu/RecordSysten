@@ -7,12 +7,14 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QListWidgetItem, QMenu, QScrollArea, QFileDialog,
                             QStyle, QInputDialog)
 import uuid
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QPalette, QColor, QIcon
 from company_dialog import CompanyDialog
 from style_sheet import StyleSheet
 
 class CompanyManagerDialog(QDialog):
+    company_updated = Signal()  # 添加信号
+    
     def __init__(self, parent=None, data=None):
         super().__init__(parent)
         self.setWindowTitle("公司管理")
@@ -46,6 +48,7 @@ class CompanyManagerDialog(QDialog):
         if hasattr(self.parent, 'update_table'):
             self.parent.update_table()
         self.load_companies()
+        self.company_updated.emit()
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -109,6 +112,7 @@ class CompanyManagerDialog(QDialog):
             self.data["companies"][company_id] = company_data
             self.load_companies()
             self.save_and_update()
+            self.company_updated.emit()
 
     def edit_company(self):
         current_item = self.list_widget.currentItem()
@@ -129,6 +133,7 @@ class CompanyManagerDialog(QDialog):
             self.data["companies"][company_id].update(updated_data)
             self.load_companies()
             self.save_and_update()
+            self.company_updated.emit()
 
     def delete_company(self):
         current_item = self.list_widget.currentItem()
@@ -152,3 +157,4 @@ class CompanyManagerDialog(QDialog):
             del self.data["companies"][company_id]
             self.load_companies()
             self.save_and_update()
+            self.company_updated.emit()

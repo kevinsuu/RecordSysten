@@ -1,6 +1,6 @@
 # vehicle_manager_dialog.py
 import uuid
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtGui import QFont, QPalette, QColor, QIcon
 from vehicle_dialog import VehicleDialog
 from style_sheet import StyleSheet
@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QStyle, QInputDialog)
 
 class VehicleManagerDialog(QDialog):
+    vehicle_updated = Signal()  # 添加信号
+    
     def __init__(self, parent=None, company_id=None, data=None):
         super().__init__(parent)
         self.setWindowTitle("車輛管理")
@@ -45,6 +47,7 @@ class VehicleManagerDialog(QDialog):
         if hasattr(self.parent, 'update_table'):
             self.parent.update_table()
         self.load_vehicles()
+        self.vehicle_updated.emit()  # 发出信号
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -111,6 +114,7 @@ class VehicleManagerDialog(QDialog):
             self.data["companies"][self.company_id]["vehicles"][vehicle_id] = vehicle_data
             self.load_vehicles()
             self.save_and_update()
+            self.vehicle_updated.emit()  # 发出信号
 
     def edit_vehicle(self):
         current_item = self.list_widget.currentItem()
@@ -129,6 +133,7 @@ class VehicleManagerDialog(QDialog):
             self.data["companies"][self.company_id]["vehicles"][vehicle_id].update(updated_data)
             self.load_vehicles()
             self.save_and_update()
+            self.vehicle_updated.emit()  # 发出信号
 
     def delete_vehicle(self):
         current_item = self.list_widget.currentItem()
@@ -149,3 +154,4 @@ class VehicleManagerDialog(QDialog):
             del self.data["companies"][self.company_id]["vehicles"][vehicle_id]
             self.load_vehicles()
             self.save_and_update()
+            self.vehicle_updated.emit()  # 发出信号
