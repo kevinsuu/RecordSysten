@@ -7,7 +7,32 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('firebase-key.json', '.')],  # 將 firebase-key.json 打包進去
-    hiddenimports=[],
+    hiddenimports=[
+        'firebase_admin',
+        'firebase_admin.credentials',
+        'firebase_admin.db',
+        'firebase_admin._auth_utils',
+        'firebase_admin._token_gen',
+        'firebase_admin._utils',
+        'firebase_admin.exceptions',
+        'google.cloud',
+        'google.api_core',
+        'google.auth',
+        'google.auth.transport',
+        'google.auth.transport.requests',
+        'google.oauth2',
+        'google.oauth2.credentials',
+        'google.oauth2.service_account',
+        'grpc',
+        'requests',
+        'urllib3',
+        'cachecontrol',
+        'certifi',
+        'chardet',
+        'idna',
+        'msgpack',
+        'requests_toolbelt'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -34,11 +59,10 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=False,  # 改回 False 以隱藏命令行窗口
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
-    entitlements_file=None,
-    icon='app.ico'  # 如果您有圖示檔案的話
+    entitlements_file=None
 )
