@@ -54,6 +54,15 @@ function Home() {
     // 新增記錄高亮效果
     const [recentlyAddedId, setRecentlyAddedId] = useState(null);
 
+    // 添加最後活動時間和定時器的狀態
+    const [lastActivityTime, setLastActivityTime] = useState(Date.now());
+    const autoRefreshIntervalRef = useRef(null);
+    const REFRESH_INTERVAL = 60 * 60 * 1000; // 1小時
+    const ACTIVITY_CHECK_INTERVAL = 5 * 60 * 1000; // 5分鐘檢查一次
+
+    // 添加可收合的搜尋介面功能
+    const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+
     // 處理登出
     const handleLogout = async () => {
         try {
@@ -136,7 +145,7 @@ function Home() {
         // 按時間戳降序排序（最新的記錄在前）
         allRecords.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setRecords(allRecords);
-    }, [database]);
+    }, []);
 
     // 載入資料
     const loadData = useCallback(async (options = {}) => {
@@ -530,7 +539,16 @@ function Home() {
         );
     };
 
-    // 添加CSS部分：在return函數前或其他適當位置添加
+    // 在組件卸載時清理
+    useEffect(() => {
+        return () => {
+            if (autoRefreshIntervalRef.current) {
+                clearInterval(autoRefreshIntervalRef.current);
+            }
+        };
+    }, []);
+
+    // 在 return 之前添加樣式
     useEffect(() => {
         const addStyles = () => {
             const styleEl = document.createElement('style');
@@ -713,6 +731,45 @@ function Home() {
                         background-color: rgba(40, 167, 69, 0.25);
                     }
                 }
+                
+                /* 搜尋區塊收合動畫 */
+                .search-card {
+                    transition: all 0.3s ease-in-out;
+                    overflow: hidden;
+                }
+                
+                .search-card.collapsed {
+                    max-height: 0;
+                    padding: 0;
+                    margin: 0;
+                    opacity: 0;
+                }
+                
+                .search-card.expanded {
+                    max-height: 1000px;
+                    opacity: 1;
+                }
+                
+                .search-toggle-btn {
+                    width: 100%;
+                    margin-bottom: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 8px 15px;
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    color: #495057;
+                }
+                
+                .search-toggle-btn .toggle-icon {
+                    transition: transform 0.3s ease;
+                }
+                
+                .search-toggle-btn .toggle-icon.rotated {
+                    transform: rotate(180deg);
+                }
             `;
             document.head.appendChild(styleEl);
             return () => {
@@ -723,6 +780,68 @@ function Home() {
         const cleanup = addStyles();
         return cleanup;
     }, []);
+
+    // 更新最後活動時間
+    const updateLastActivity = useCallback(() => {
+        setLastActivityTime(Date.now());
+    }, []);
+
+    // 檢查是否需要更新資料
+    const checkAndRefreshData = useCallback(() => {
+        const now = Date.now();
+        const timeSinceLastActivity = now - lastActivityTime;
+
+        console.log('檢查是否需要更新:', {
+            現在時間: new Date(now).toLocaleString(),
+            最後活動時間: new Date(lastActivityTime).toLocaleString(),
+            閒置時間: Math.floor(timeSinceLastActivity / 1000) + '秒',
+            更新間隔: Math.floor(REFRESH_INTERVAL / 1000) + '秒'
+        });
+
+        // 如果超過設定時間沒有活動，重新載入資料
+        if (timeSinceLastActivity >= REFRESH_INTERVAL) {
+            console.log('開始重新載入資料...');
+            loadData();
+            updateLastActivity();
+            showNotification('資料已自動更新', 'info');
+        }
+    }, [lastActivityTime, loadData, REFRESH_INTERVAL, updateLastActivity]);
+
+    // 設置活動監聽器
+    useEffect(() => {
+        // 監聽使用者活動
+        const activityEvents = [
+            'mousedown', 'mousemove', 'keydown',
+            'scroll', 'touchstart', 'click', 'keypress'
+        ];
+
+        const handleActivity = () => {
+            updateLastActivity();
+        };
+
+        // 添加所有事件監聽器
+        activityEvents.forEach(event => {
+            window.addEventListener(event, handleActivity);
+        });
+
+        // 設置定期檢查
+        autoRefreshIntervalRef.current = setInterval(() => {
+            checkAndRefreshData();
+        }, ACTIVITY_CHECK_INTERVAL);
+
+        // 清理函數
+        return () => {
+            // 移除所有事件監聽器
+            activityEvents.forEach(event => {
+                window.removeEventListener(event, handleActivity);
+            });
+
+            // 清除定時器
+            if (autoRefreshIntervalRef.current) {
+                clearInterval(autoRefreshIntervalRef.current);
+            }
+        };
+    }, [updateLastActivity, checkAndRefreshData, ACTIVITY_CHECK_INTERVAL]);
 
     return (
         <>
@@ -925,120 +1044,131 @@ function Home() {
                             </>
                         ) : (
                             // 移動版控制區域
-                            <div className="bg-light p-3 rounded mb-4 search-card">
-                                {/* 公司選擇 */}
-                                <Form.Group className="mb-4">
-                                    <Form.Label className="fw-bold mb-2">公司</Form.Label>
-                                    <div className="d-flex">
-                                        <Form.Select
-                                            value={selectedCompany}
-                                            onChange={(e) => setSelectedCompany(e.target.value)}
-                                            className="flex-grow-1"
-                                        >
-                                            <option value="all">全部公司</option>
-                                            {Object.entries(data.companies || {})
-                                                .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                                .map(([id, company]) => (
-                                                    <option key={id} value={id}>{company.name}</option>
-                                                ))
-                                            }
-                                        </Form.Select>
-                                        <Button
-                                            variant="light"
-                                            className="ms-2 px-2"
-                                            title="管理公司"
-                                            onClick={() => setShowCompanyManager(true)}
-                                        >
-                                            <FaCog />
-                                        </Button>
-                                    </div>
-                                </Form.Group>
-
-                                {/* 車輛選擇 */}
-                                <Form.Group className="mb-4">
-                                    <Form.Label className="fw-bold mb-2">車輛</Form.Label>
-                                    <div className="d-flex">
-                                        <Form.Select
-                                            value={selectedVehicle}
-                                            onChange={(e) => setSelectedVehicle(e.target.value)}
-                                            className="flex-grow-1"
-                                        >
-                                            <option value="all">全部車輛</option>
-                                            {selectedCompany !== 'all' &&
-                                                Object.entries(data.companies[selectedCompany]?.vehicles || {})
+                            <>
+                                <button
+                                    className="search-toggle-btn"
+                                    onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+                                >
+                                    <span>搜尋條件 {isSearchExpanded ? '收起' : '展開'}</span>
+                                    <span className={`toggle-icon ${isSearchExpanded ? 'rotated' : ''}`}>
+                                        ▼
+                                    </span>
+                                </button>
+                                <div className={`bg-light p-3 rounded mb-4 search-card ${isSearchExpanded ? 'expanded' : 'collapsed'}`}>
+                                    {/* 公司選擇 */}
+                                    <Form.Group className="mb-4">
+                                        <Form.Label className="fw-bold mb-2">公司</Form.Label>
+                                        <div className="d-flex">
+                                            <Form.Select
+                                                value={selectedCompany}
+                                                onChange={(e) => setSelectedCompany(e.target.value)}
+                                                className="flex-grow-1"
+                                            >
+                                                <option value="all">全部公司</option>
+                                                {Object.entries(data.companies || {})
                                                     .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                                    .map(([id, vehicle]) => (
-                                                        <option key={id} value={id}>
-                                                            {vehicle.plate} ({vehicle.type})
-                                                        </option>
+                                                    .map(([id, company]) => (
+                                                        <option key={id} value={id}>{company.name}</option>
                                                     ))
-                                            }
-                                        </Form.Select>
-                                        <Button
-                                            variant="light"
-                                            className="ms-2 px-2"
-                                            title="管理車輛"
-                                            onClick={() => {
-                                                if (selectedCompany === 'all') {
-                                                    showNotification('請先選擇一個公司', 'warning');
-                                                    return;
                                                 }
-                                                setShowVehicleManager(true);
-                                            }}
+                                            </Form.Select>
+                                            <Button
+                                                variant="light"
+                                                className="ms-2 px-2"
+                                                title="管理公司"
+                                                onClick={() => setShowCompanyManager(true)}
+                                            >
+                                                <FaCog />
+                                            </Button>
+                                        </div>
+                                    </Form.Group>
+
+                                    {/* 車輛選擇 */}
+                                    <Form.Group className="mb-4">
+                                        <Form.Label className="fw-bold mb-2">車輛</Form.Label>
+                                        <div className="d-flex">
+                                            <Form.Select
+                                                value={selectedVehicle}
+                                                onChange={(e) => setSelectedVehicle(e.target.value)}
+                                                className="flex-grow-1"
+                                            >
+                                                <option value="all">全部車輛</option>
+                                                {selectedCompany !== 'all' &&
+                                                    Object.entries(data.companies[selectedCompany]?.vehicles || {})
+                                                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                                                        .map(([id, vehicle]) => (
+                                                            <option key={id} value={id}>
+                                                                {vehicle.plate} ({vehicle.type})
+                                                            </option>
+                                                        ))
+                                                }
+                                            </Form.Select>
+                                            <Button
+                                                variant="light"
+                                                className="ms-2 px-2"
+                                                title="管理車輛"
+                                                onClick={() => {
+                                                    if (selectedCompany === 'all') {
+                                                        showNotification('請先選擇一個公司', 'warning');
+                                                        return;
+                                                    }
+                                                    setShowVehicleManager(true);
+                                                }}
+                                            >
+                                                <FaCog />
+                                            </Button>
+                                        </div>
+                                    </Form.Group>
+
+                                    {/* 移動版日期範圍選擇 */}
+                                    <Form.Group className="mb-4 mt-3">
+                                        <Form.Label className="fw-bold mb-2">日期範圍</Form.Label>
+                                        <div className="mb-2">
+                                            <Form.Label className="text-muted small">起始日期</Form.Label>
+                                            <div style={{ zIndex: 100, position: "relative" }}>
+                                                <DatePicker
+                                                    selected={startDate}
+                                                    onChange={date => setStartDate(date)}
+                                                    className="form-control w-100"
+                                                    dateFormat="yyyy-MM-dd"
+                                                    placeholderText="起始日期"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Form.Label className="text-muted small">結束日期</Form.Label>
+                                            <div style={{ zIndex: 100, position: "relative" }}>
+                                                <DatePicker
+                                                    selected={endDate}
+                                                    onChange={date => setEndDate(date)}
+                                                    className="form-control w-100"
+                                                    dateFormat="yyyy-MM-dd"
+                                                    placeholderText="結束日期"
+                                                />
+                                            </div>
+                                        </div>
+                                    </Form.Group>
+
+                                    {/* 移動版搜尋輸入 */}
+                                    <Form.Group className="mb-4">
+                                        <Form.Label className="fw-bold mb-2">關鍵字搜尋</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="搜尋類型、日期、公司、車牌、服務項目..."
+                                            value={searchText}
+                                            onChange={e => setSearchText(e.target.value)}
+                                            className="mb-2"
+                                        />
+                                        <Button
+                                            variant="secondary"
+                                            onClick={clearSearch}
+                                            className="w-100"
                                         >
-                                            <FaCog />
+                                            清除搜尋
                                         </Button>
-                                    </div>
-                                </Form.Group>
-
-                                {/* 移動版日期範圍選擇 */}
-                                <Form.Group className="mb-4 mt-3">
-                                    <Form.Label className="fw-bold mb-2">日期範圍</Form.Label>
-                                    <div className="mb-2">
-                                        <Form.Label className="text-muted small">起始日期</Form.Label>
-                                        <div style={{ zIndex: 100, position: "relative" }}>
-                                            <DatePicker
-                                                selected={startDate}
-                                                onChange={date => setStartDate(date)}
-                                                className="form-control w-100"
-                                                dateFormat="yyyy-MM-dd"
-                                                placeholderText="起始日期"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Form.Label className="text-muted small">結束日期</Form.Label>
-                                        <div style={{ zIndex: 100, position: "relative" }}>
-                                            <DatePicker
-                                                selected={endDate}
-                                                onChange={date => setEndDate(date)}
-                                                className="form-control w-100"
-                                                dateFormat="yyyy-MM-dd"
-                                                placeholderText="結束日期"
-                                            />
-                                        </div>
-                                    </div>
-                                </Form.Group>
-
-                                {/* 移動版搜尋輸入 */}
-                                <Form.Group className="mb-4">
-                                    <Form.Label className="fw-bold mb-2">關鍵字搜尋</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="搜尋類型、日期、公司、車牌、服務項目..."
-                                        value={searchText}
-                                        onChange={e => setSearchText(e.target.value)}
-                                        className="mb-2"
-                                    />
-                                    <Button
-                                        variant="secondary"
-                                        onClick={clearSearch}
-                                        className="w-100"
-                                    >
-                                        清除搜尋
-                                    </Button>
-                                </Form.Group>
-                            </div>
+                                    </Form.Group>
+                                </div>
+                            </>
                         )}
 
                         {/* 資料表格容器 - 桌面版 */}
