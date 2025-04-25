@@ -207,11 +207,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.table)
         
         # 設置事件處理
-        self.company_combo.currentIndexChanged.connect(self.update_vehicle_combo)
-        self.company_combo.currentIndexChanged.connect(self.update_table)
-        self.vehicle_combo.currentIndexChanged.connect(self.update_table)
-        self.start_date.dateChanged.connect(self.update_table)
-        self.end_date.dateChanged.connect(self.update_table)
+        self.company_combo.currentIndexChanged.connect(self.filter_records)
+        self.vehicle_combo.currentIndexChanged.connect(self.filter_records)
+        self.start_date.dateChanged.connect(self.filter_records)
+        self.end_date.dateChanged.connect(self.filter_records)
         
         # 初始化下拉選單
         self.update_company_combo()
@@ -545,6 +544,9 @@ class MainWindow(QMainWindow):
 
     def filter_records(self):
         """根據搜尋條件過濾記錄"""
+        # 首先更新表格内容
+        self.update_table()
+        
         search_text = self.search_input.text().lower().strip()
         
         # 獲取日期範圍
@@ -560,14 +562,15 @@ class MainWindow(QMainWindow):
             if not record_date.isValid():
                 record_date = QDate.fromString(date_str, "yyyy/MM/dd")  # 如果無效，嘗試 yyyy/MM/dd 格式
             
-            if record_date < start_date or record_date > end_date:
-                hide = True            
+            if not (start_date <= record_date <= end_date):  # 修改日期比较逻辑
+                hide = True
+            
             # 檢查搜尋文字
             if not hide and search_text:
                 found = False
                 
                 # 檢查每個欄位
-                for col in range(self.table.columnCount() - 1):  # 排除最後一欄（操作按鈕）
+                for col in range(self.table.columnCount() - 1):
                     item = self.table.item(row, col)
                     if not item:
                         continue
@@ -576,16 +579,13 @@ class MainWindow(QMainWindow):
                     
                     # 特別處理服務項目欄位
                     if col == 5:  # 服務項目欄位
-                        # 分割每一行並檢查
                         lines = cell_text.split('\n')
                         for line in lines:
-                            # 移除 "•" 和金額部分，但保留完整的項目名稱
                             service = line.replace('• ', '').split(' - $')[0].strip().lower()
                             if search_text in service:
                                 found = True
                                 break
                     else:
-                        # 其他欄位直接檢查
                         if search_text in cell_text:
                             found = True
                             break

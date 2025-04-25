@@ -338,7 +338,28 @@ class AddRecordDialog(QDialog):
 
     def manage_companies(self):
         dialog = CompanyManagerDialog(self, self.data)
+        # 连接公司管理对话框的更新信号
+        dialog.company_updated.connect(self.refresh_company_list)
         dialog.exec()
+
+    def refresh_company_list(self):
+        """刷新公司列表"""
+        # 保存当前选中的公司ID
+        current_company_id = self.company_combo.currentData()
+        
+        # 重新加载公司列表
+        self.load_companies()
+        
+        # 尝试恢复之前选中的公司
+        index = self.company_combo.findData(current_company_id)
+        if index >= 0:
+            self.company_combo.setCurrentIndex(index)
+        else:
+            # 如果之前选中的公司已被删除，则设置为第一个选项
+            self.company_combo.setCurrentIndex(0)
+        
+        # 更新车辆列表
+        self.update_vehicles()
 
     def manage_vehicles(self):
         company_id = self.company_combo.currentData()
@@ -347,7 +368,25 @@ class AddRecordDialog(QDialog):
             return
             
         dialog = VehicleManagerDialog(self, company_id, self.data)
+        # 连接车辆管理对话框的更新信号
+        dialog.vehicle_updated.connect(self.refresh_vehicle_list)
         dialog.exec()
+
+    def refresh_vehicle_list(self):
+        """刷新车辆列表"""
+        # 保存当前选中的车辆ID
+        current_vehicle_id = self.vehicle_combo.currentData()
+        
+        # 更新车辆列表
+        self.update_vehicles()
+        
+        # 尝试恢复之前选中的车辆
+        index = self.vehicle_combo.findData(current_vehicle_id)
+        if index >= 0:
+            self.vehicle_combo.setCurrentIndex(index)
+        else:
+            # 如果之前选中的车辆已被删除，则设置为第一个选项
+            self.vehicle_combo.setCurrentIndex(0)
 
     def update_wash_items(self):
         """更新洗車項目"""
