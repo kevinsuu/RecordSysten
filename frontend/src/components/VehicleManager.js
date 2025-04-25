@@ -151,7 +151,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
                 type: type,
                 remarks: remarks.trim(),
                 records: [],
-                sort_index: vehicles.length // 新車輛排序在最後
+                sort_index: vehicles.length + 1 // 從1開始計數
             };
 
             // 更新 Firebase
@@ -280,10 +280,10 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
         // 將項目插入到目標位置
         items.splice(result.destination.index, 0, reorderedItem);
 
-        // 更新排序索引
+        // 更新排序索引，從1開始
         const reorderedVehicles = items.map((vehicle, index) => ({
             ...vehicle,
-            sort_index: index
+            sort_index: index + 1
         }));
 
         // 更新本地狀態
@@ -448,7 +448,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             )}
 
             <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-                <StrictModeDroppable droppableId="vehicle-list">
+                <StrictModeDroppable droppableId={`vehicle-list-${companyId}`}>
                     {(provided) => (
                         <div
                             {...provided.droppableProps}

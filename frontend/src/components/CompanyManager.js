@@ -109,7 +109,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                 phone: phone.trim(),
                 address: address.trim(),
                 vehicles: {},
-                sort_index: companies.length // 新增時設定為列表最後
+                sort_index: companies.length + 1 // 從1開始計數
             };
 
             // 更新 Firebase
@@ -234,10 +234,10 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
         // 將項目插入到目標位置
         items.splice(result.destination.index, 0, reorderedItem);
 
-        // 更新排序索引
+        // 更新排序索引，從1開始
         const reorderedCompanies = items.map((company, index) => ({
             ...company,
-            sort_index: index
+            sort_index: index + 1
         }));
 
         // 先更新本地狀態，讓UI即時更新
@@ -365,7 +365,12 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                                                     >
                                                         <FaBars />
                                                     </div>
-                                                    <span>{company.name}</span>
+                                                    <div>
+                                                        <strong>{company.name}</strong>
+                                                        {company.tax_id && <small className="d-block text-muted">統編：{company.tax_id}</small>}
+                                                        {company.phone && <small className="d-block text-muted">電話：{company.phone}</small>}
+                                                        {company.address && <small className="d-block text-muted">地址：{company.address}</small>}
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <Button
