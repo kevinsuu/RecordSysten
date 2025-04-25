@@ -252,12 +252,16 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             // 獲取當前記錄
             const records = data.companies[selectedCompanyId]?.vehicles[selectedVehicleId]?.records || [];
 
+            // 建立時間戳 (毫秒)
+            const timestamp = Date.now();
+
             // 準備新記錄
             const newRecord = {
                 date: dateString,
                 payment_type: paymentType,
                 items: allItems,
-                remarks: remarks.trim()
+                remarks: remarks.trim(),
+                timestamp: timestamp // 添加時間戳
             };
 
             // 添加新記錄

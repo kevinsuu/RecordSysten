@@ -15,6 +15,7 @@ import { getAuth, signOut } from 'firebase/auth';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'react-datepicker/dist/react-datepicker.css';
 import '../assets/Home.css';
+import { ref, set } from 'firebase/database';
 
 function Home() {
     // 狀態管理
@@ -81,24 +82,58 @@ function Home() {
             const companyName = company.name;
 
             Object.entries(company.vehicles || {}).forEach(([vehicleId, vehicle]) => {
-                (vehicle.records || []).forEach((record) => {
-                    allRecords.push({
-                        ...record,
-                        companyId,
-                        companyName,
-                        vehicleId,
-                        vehicle: {
-                            plate: vehicle.plate,
-                            type: vehicle.type,
-                            remarks: vehicle.remarks || ''
+                if (vehicle.records && Array.isArray(vehicle.records)) {
+                    // 為沒有時間戳的記錄添加時間戳
+                    let needsUpdate = false;
+                    const recordsWithTimestamp = vehicle.records.map(record => {
+                        if (!record.timestamp) {
+                            needsUpdate = true;
+                            // 如果沒有時間戳，使用日期轉換成時間戳，或使用當前時間作為備用
+                            const dateParts = record.date?.split('-');
+                            let timestamp;
+                            if (dateParts && dateParts.length === 3) {
+                                const recordDate = new Date(
+                                    parseInt(dateParts[0]),
+                                    parseInt(dateParts[1]) - 1,
+                                    parseInt(dateParts[2])
+                                );
+                                timestamp = recordDate.getTime();
+                            } else {
+                                timestamp = Date.now() - Math.floor(Math.random() * 10000000); // 隨機偏移，避免所有舊記錄有相同時間戳
+                            }
+                            return { ...record, timestamp };
                         }
+                        return record;
                     });
-                });
+
+                    // 如果有記錄被更新，更新 Firebase
+                    if (needsUpdate) {
+                        set(ref(database, `companies/${companyId}/vehicles/${vehicleId}/records`), recordsWithTimestamp)
+                            .catch(error => console.error('更新記錄時間戳錯誤:', error));
+                    }
+
+                    // 將處理後的記錄添加到列表
+                    recordsWithTimestamp.forEach(record => {
+                        allRecords.push({
+                            ...record,
+                            companyId,
+                            companyName,
+                            vehicleId,
+                            vehicle: {
+                                plate: vehicle.plate,
+                                type: vehicle.type,
+                                remarks: vehicle.remarks || ''
+                            }
+                        });
+                    });
+                }
             });
         });
 
+        // 按時間戳降序排序（最新的記錄在前）
+        allRecords.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setRecords(allRecords);
-    }, []);
+    }, [database]);
 
     // 載入資料
     const loadData = useCallback(async (options = {}) => {
@@ -125,8 +160,13 @@ function Home() {
         if (options.reload === false) {
             // 如果有新記錄資料，直接更新本地狀態
             if (options.newRecord) {
-                // 直接將新記錄添加到記錄列表
-                setRecords(prevRecords => [options.newRecord, ...prevRecords]);
+                // 添加新記錄，並確保按時間戳降序排序
+                setRecords(prevRecords => {
+                    // 添加新記錄到列表中
+                    const updatedRecords = [options.newRecord, ...prevRecords];
+                    // 確保按時間戳降序排序
+                    return updatedRecords.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                });
             }
 
             // 若有更新後的完整資料，則更新資料狀態
@@ -249,7 +289,7 @@ function Home() {
 
         try {
             const recordIndex = data.companies[record.companyId].vehicles[record.vehicleId].records.findIndex(
-                r => r.date === record.date
+                r => r.date === record.date && r.timestamp === record.timestamp // 增加時間戳比對
             );
 
             if (recordIndex === -1) throw new Error('找不到要刪除的記錄');
