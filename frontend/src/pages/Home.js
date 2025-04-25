@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav, Pagination } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
-import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt, FaGripVertical } from 'react-icons/fa';
+import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -50,6 +50,9 @@ function Home() {
         message: '',
         severity: 'success' // 'success', 'error', 'warning', 'info'
     });
+
+    // 新增記錄高亮效果
+    const [recentlyAddedId, setRecentlyAddedId] = useState(null);
 
     // 處理登出
     const handleLogout = async () => {
@@ -160,6 +163,16 @@ function Home() {
         if (options.reload === false) {
             // 如果有新記錄資料，直接更新本地狀態
             if (options.newRecord) {
+                // 標記新添加的記錄ID
+                if (options.newRecord.timestamp) {
+                    setRecentlyAddedId(options.newRecord.timestamp);
+
+                    // 設置定時器，3秒後清除高亮效果
+                    setTimeout(() => {
+                        setRecentlyAddedId(null);
+                    }, 3000);
+                }
+
                 // 添加新記錄，並確保按時間戳降序排序
                 setRecords(prevRecords => {
                     // 添加新記錄到列表中
@@ -662,6 +675,44 @@ function Home() {
                         margin-right: 6px;
                     }
                 }
+                
+                /* 新增記錄高亮效果 */
+                .highlight-new-record {
+                    animation: pulse-animation 1.5s infinite alternate;
+                    border-left: 4px solid #28a745 !important;
+                    background-color: rgba(40, 167, 69, 0.05);
+                }
+                
+                /* 表格行高亮效果 */
+                tr.highlight-new-record {
+                    background-color: rgba(40, 167, 69, 0.15) !important;
+                    box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+                    animation: pulse-background 1.5s infinite alternate;
+                }
+                
+                tr.highlight-new-record td {
+                    background-color: rgba(40, 167, 69, 0.15) !important;
+                    font-weight: bold;
+                    border: 1px solid rgba(40, 167, 69, 0.3);
+                }
+                
+                @keyframes pulse-animation {
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
+                    }
+                    100% {
+                        box-shadow: 0 0 10px 5px rgba(40, 167, 69, 0.2);
+                    }
+                }
+                
+                @keyframes pulse-background {
+                    0% {
+                        background-color: rgba(40, 167, 69, 0.1);
+                    }
+                    100% {
+                        background-color: rgba(40, 167, 69, 0.25);
+                    }
+                }
             `;
             document.head.appendChild(styleEl);
             return () => {
@@ -1012,7 +1063,10 @@ function Home() {
                                 </thead>
                                 <tbody>
                                     {currentRecords.map((record, index) => (
-                                        <tr key={index}>
+                                        <tr
+                                            key={index}
+                                            className={record.timestamp === recentlyAddedId ? 'highlight-new-record' : ''}
+                                        >
                                             <td>{getPaymentTypeText(record.payment_type)}</td>
                                             <td>{record.date}</td>
                                             <td>{record.companyName}</td>
@@ -1062,7 +1116,10 @@ function Home() {
                                     </div>
                                 ) : (
                                     currentRecords.map((record, index) => (
-                                        <div key={index} className="record-card">
+                                        <div
+                                            key={index}
+                                            className={`record-card ${record.timestamp === recentlyAddedId ? 'highlight-new-record' : ''}`}
+                                        >
                                             <div className="record-card-header">
                                                 <div className="record-card-company">{record.companyName}</div>
                                                 <div className="record-card-date">{record.date}</div>
