@@ -25,11 +25,24 @@ function App() {
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // Modal 狀態管理
   const [showCompanyManager, setShowCompanyManager] = useState(false);
   const [showVehicleManager, setShowVehicleManager] = useState(false);
   const [showAddRecord, setShowAddRecord] = useState(false);
+
+  // 監聽窗口大小變化
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   // 處理記錄
   const processRecords = useCallback((data) => {
@@ -282,149 +295,258 @@ function App() {
       {/* 剩餘內容保持不變 */}
       {!isLoading && (
         <>
-          {/* 頂部控制區域 */}
-          <Row className="mb-3">
-            {/* 公司選擇 */}
-            <Col xs={12} md={3} className="mb-2">
-              <Form.Group className="d-flex align-items-center">
-                <Form.Label className="me-2 mb-0">公司:</Form.Label>
-                <Form.Select
-                  value={selectedCompany}
-                  onChange={(e) => setSelectedCompany(e.target.value)}
-                  className="flex-grow-1"
-                >
-                  <option value="all">全部公司</option>
-                  {Object.entries(data.companies || {})
-                    .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                    .map(([id, company]) => (
-                      <option key={id} value={id}>{company.name}</option>
-                    ))
-                  }
-                </Form.Select>
-                <Button
-                  variant="light"
-                  className="ms-1 p-1"
-                  title="管理公司"
-                  onClick={() => setShowCompanyManager(true)}
-                >
-                  <FaCog />
-                </Button>
-              </Form.Group>
-            </Col>
+          {/* 使用 isMobile 控制響應式顯示 */}
+          {!isMobile ? (
+            // 桌面版控制區域
+            <>
+              <Row className="mb-3">
+                {/* 公司選擇 */}
+                <Col md={3} className="mb-2">
+                  <Form.Group className="d-flex align-items-center">
+                    <Form.Label className="me-2 mb-0">公司:</Form.Label>
+                    <Form.Select
+                      value={selectedCompany}
+                      onChange={(e) => setSelectedCompany(e.target.value)}
+                      className="flex-grow-1"
+                    >
+                      <option value="all">全部公司</option>
+                      {Object.entries(data.companies || {})
+                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                        .map(([id, company]) => (
+                          <option key={id} value={id}>{company.name}</option>
+                        ))
+                      }
+                    </Form.Select>
+                    <Button
+                      variant="light"
+                      className="ms-1 p-1"
+                      title="管理公司"
+                      onClick={() => setShowCompanyManager(true)}
+                    >
+                      <FaCog />
+                    </Button>
+                  </Form.Group>
+                </Col>
 
-            {/* 車輛選擇 */}
-            <Col xs={12} md={3} className="mb-2">
-              <Form.Group className="d-flex align-items-center">
-                <Form.Label className="me-2 mb-0">車輛:</Form.Label>
-                <Form.Select
-                  value={selectedVehicle}
-                  onChange={(e) => setSelectedVehicle(e.target.value)}
-                  className="flex-grow-1"
-                >
-                  <option value="all">全部車輛</option>
-                  {selectedCompany !== 'all' &&
-                    Object.entries(data.companies[selectedCompany]?.vehicles || {})
+                {/* 車輛選擇 */}
+                <Col md={3} className="mb-2">
+                  <Form.Group className="d-flex align-items-center">
+                    <Form.Label className="me-2 mb-0">車輛:</Form.Label>
+                    <Form.Select
+                      value={selectedVehicle}
+                      onChange={(e) => setSelectedVehicle(e.target.value)}
+                      className="flex-grow-1"
+                    >
+                      <option value="all">全部車輛</option>
+                      {selectedCompany !== 'all' &&
+                        Object.entries(data.companies[selectedCompany]?.vehicles || {})
+                          .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                          .map(([id, vehicle]) => (
+                            <option key={id} value={id}>
+                              {vehicle.plate} ({vehicle.type})
+                            </option>
+                          ))
+                      }
+                    </Form.Select>
+                    <Button
+                      variant="light"
+                      className="ms-1 p-1"
+                      title="管理車輛"
+                      onClick={() => {
+                        if (selectedCompany === 'all') {
+                          alert('請先選擇一個公司');
+                          return;
+                        }
+                        setShowVehicleManager(true);
+                      }}
+                    >
+                      <FaCog />
+                    </Button>
+                  </Form.Group>
+                </Col>
+
+                {/* 按鈕區 */}
+                <Col md={6} className="mb-2 d-flex justify-content-end">
+                  <Button
+                    variant="primary"
+                    className="me-2"
+                    onClick={() => setShowAddRecord(true)}
+                  >
+                    新增紀錄
+                  </Button>
+                  <Button
+                    variant="success"
+                    onClick={exportToExcel}
+                  >
+                    <FaFileExcel className="me-1" />
+                    匯出篩選資料
+                  </Button>
+                </Col>
+              </Row>
+
+              {/* 桌面版搜尋區域 */}
+              <Row className="mb-3">
+                {/* 日期範圍選擇 */}
+                <Col md={6} className="mb-2">
+                  <Form.Group className="d-flex align-items-center">
+                    <Form.Label className="me-2 mb-0">日期從:</Form.Label>
+                    <DatePicker
+                      selected={startDate}
+                      onChange={date => setStartDate(date)}
+                      className="form-control me-2"
+                      dateFormat="yyyy-MM-dd"
+                    />
+                    <Form.Label className="me-2 mb-0">到:</Form.Label>
+                    <DatePicker
+                      selected={endDate}
+                      onChange={date => setEndDate(date)}
+                      className="form-control"
+                      dateFormat="yyyy-MM-dd"
+                    />
+                  </Form.Group>
+                </Col>
+
+                {/* 搜尋輸入 */}
+                <Col md={4} className="mb-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="搜尋服務項目、備註..."
+                    value={searchText}
+                    onChange={e => setSearchText(e.target.value)}
+                  />
+                </Col>
+
+                {/* 清除搜尋按鈕 */}
+                <Col md={2} className="mb-2">
+                  <Button
+                    variant="secondary"
+                    onClick={clearSearch}
+                    className="w-100"
+                  >
+                    清除搜尋
+                  </Button>
+                </Col>
+              </Row>
+            </>
+          ) : (
+            // 移動版控制區域
+            <div className="mb-3">
+              {/* 公司選擇 */}
+              <Form.Group className="mb-2">
+                <Form.Label>公司:</Form.Label>
+                <div className="d-flex">
+                  <Form.Select
+                    value={selectedCompany}
+                    onChange={(e) => setSelectedCompany(e.target.value)}
+                    className="flex-grow-1"
+                  >
+                    <option value="all">全部公司</option>
+                    {Object.entries(data.companies || {})
                       .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                      .map(([id, vehicle]) => (
-                        <option key={id} value={id}>
-                          {vehicle.plate} ({vehicle.type})
-                        </option>
+                      .map(([id, company]) => (
+                        <option key={id} value={id}>{company.name}</option>
                       ))
-                  }
-                </Form.Select>
-                <Button
-                  variant="light"
-                  className="ms-1 p-1"
-                  title="管理車輛"
-                  onClick={() => {
-                    if (selectedCompany === 'all') {
-                      alert('請先選擇一個公司');
-                      return;
                     }
-                    setShowVehicleManager(true);
-                  }}
-                >
-                  <FaCog />
-                </Button>
+                  </Form.Select>
+                  <Button
+                    variant="light"
+                    className="ms-1 p-1"
+                    title="管理公司"
+                    onClick={() => setShowCompanyManager(true)}
+                  >
+                    <FaCog />
+                  </Button>
+                </div>
               </Form.Group>
-            </Col>
 
-            {/* 按鈕區 */}
-            <Col xs={12} md={6} className="mb-2 d-flex justify-content-end">
-              <Button
-                variant="primary"
-                className="me-2"
-                onClick={() => setShowAddRecord(true)}
-              >
-                新增紀錄
-              </Button>
-              <Button
-                variant="success"
-                onClick={exportToExcel}
-              >
-                <FaFileExcel className="me-1" />
-                匯出篩選資料
-              </Button>
-            </Col>
-          </Row>
+              {/* 車輛選擇 */}
+              <Form.Group className="mb-2">
+                <Form.Label>車輛:</Form.Label>
+                <div className="d-flex">
+                  <Form.Select
+                    value={selectedVehicle}
+                    onChange={(e) => setSelectedVehicle(e.target.value)}
+                    className="flex-grow-1"
+                  >
+                    <option value="all">全部車輛</option>
+                    {selectedCompany !== 'all' &&
+                      Object.entries(data.companies[selectedCompany]?.vehicles || {})
+                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                        .map(([id, vehicle]) => (
+                          <option key={id} value={id}>
+                            {vehicle.plate} ({vehicle.type})
+                          </option>
+                        ))
+                    }
+                  </Form.Select>
+                  <Button
+                    variant="light"
+                    className="ms-1 p-1"
+                    title="管理車輛"
+                    onClick={() => {
+                      if (selectedCompany === 'all') {
+                        alert('請先選擇一個公司');
+                        return;
+                      }
+                      setShowVehicleManager(true);
+                    }}
+                  >
+                    <FaCog />
+                  </Button>
+                </div>
+              </Form.Group>
 
-          {/* 搜尋區域 */}
-          <Row className="mb-3">
-            {/* 日期範圍選擇 */}
-            <Col xs={12} md={6} className="mb-2">
-              <Form.Group className="d-flex align-items-center">
-                <Form.Label className="me-2 mb-0">日期從:</Form.Label>
+              {/* 移動版日期範圍選擇 */}
+              <Form.Group className="mb-2">
+                <Form.Label>日期從:</Form.Label>
                 <DatePicker
                   selected={startDate}
                   onChange={date => setStartDate(date)}
-                  className="form-control me-2"
+                  className="form-control w-100 mb-1"
                   dateFormat="yyyy-MM-dd"
                 />
-                <Form.Label className="me-2 mb-0">到:</Form.Label>
+                <Form.Label>到:</Form.Label>
                 <DatePicker
                   selected={endDate}
                   onChange={date => setEndDate(date)}
-                  className="form-control"
+                  className="form-control w-100"
                   dateFormat="yyyy-MM-dd"
                 />
               </Form.Group>
-            </Col>
 
-            {/* 搜尋輸入 */}
-            <Col xs={12} md={4} className="mb-2">
-              <Form.Control
-                type="text"
-                placeholder="搜尋服務項目、備註..."
-                value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-              />
-            </Col>
+              {/* 移動版搜尋輸入 */}
+              <Form.Group className="mb-2">
+                <Form.Control
+                  type="text"
+                  placeholder="搜尋服務項目、備註..."
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  className="mb-1"
+                />
+                <Button
+                  variant="secondary"
+                  onClick={clearSearch}
+                  className="w-100"
+                >
+                  清除搜尋
+                </Button>
+              </Form.Group>
+            </div>
+          )}
 
-            {/* 清除搜尋按鈕 */}
-            <Col xs={12} md={2} className="mb-2">
-              <Button
-                variant="secondary"
-                onClick={clearSearch}
-                className="w-100"
-              >
-                清除搜尋
-              </Button>
-            </Col>
-          </Row>
-
-          {/* 資料表格 */}
-          <div className="table-responsive">
+          {/* 資料表格容器 */}
+          <div className={`table-responsive ${isMobile ? 'table-container-mobile' : ''}`}>
             <Table striped bordered hover className="mb-0">
               <thead>
                 <tr>
                   <th>類型</th>
                   <th>日期</th>
                   <th>公司</th>
-                  <th>車牌號碼</th>
-                  <th>車輛種類</th>
+                  <th>車牌</th>
+                  {!isMobile && <th>車種</th>}
                   <th>服務項目</th>
-                  <th>備註</th>
-                  <th>金額總計</th>
+                  {!isMobile && <th>備註</th>}
+                  <th>金額</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -437,7 +559,7 @@ function App() {
                     <td title={record.vehicle.remarks ? `備註：${record.vehicle.remarks}` : ''}>
                       {record.vehicle.plate}
                     </td>
-                    <td>{record.vehicle.type}</td>
+                    {!isMobile && <td>{record.vehicle.type}</td>}
                     <td>
                       {record.items.map((item, idx) => {
                         const itemName = typeof item === 'string' ? item : item.name;
@@ -447,7 +569,7 @@ function App() {
                         );
                       })}
                     </td>
-                    <td>{record.remarks || ''}</td>
+                    {!isMobile && <td>{record.remarks || ''}</td>}
                     <td className="text-end">${calculateTotal(record.items).toLocaleString()}</td>
                     <td>
                       <Button
@@ -462,18 +584,38 @@ function App() {
                 ))}
                 {filteredRecords.length === 0 && (
                   <tr>
-                    <td colSpan="9" className="text-center">沒有找到符合條件的記錄</td>
+                    <td colSpan={isMobile ? 7 : 9} className="text-center">沒有找到符合條件的記錄</td>
                   </tr>
                 )}
               </tbody>
             </Table>
           </div>
 
+          {/* 移動版底部固定按鈕 */}
+          {isMobile && (
+            <div className="action-buttons-mobile">
+              <Button
+                variant="primary"
+                onClick={() => setShowAddRecord(true)}
+              >
+                新增紀錄
+              </Button>
+              <Button
+                variant="success"
+                onClick={exportToExcel}
+              >
+                <FaFileExcel className="me-1" />
+                匯出資料
+              </Button>
+            </div>
+          )}
+
           {/* 公司管理對話框 */}
           <Modal
             show={showCompanyManager}
             onHide={() => setShowCompanyManager(false)}
             size="lg"
+            fullscreen={isMobile}
           >
             <Modal.Header closeButton>
               <Modal.Title>公司管理</Modal.Title>
@@ -493,6 +635,7 @@ function App() {
             show={showVehicleManager}
             onHide={() => setShowVehicleManager(false)}
             size="lg"
+            fullscreen={isMobile}
           >
             <Modal.Header closeButton>
               <Modal.Title>車輛管理</Modal.Title>
@@ -513,6 +656,7 @@ function App() {
             show={showAddRecord}
             onHide={() => setShowAddRecord(false)}
             size="lg"
+            fullscreen={isMobile}
           >
             <Modal.Header closeButton>
               <Modal.Title>新增紀錄</Modal.Title>
