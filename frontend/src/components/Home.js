@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Button, Card, Nav, Modal } from 'react-bootstrap';
 import { ref, get } from 'firebase/database';
-import { FaBuilding, FaCar, FaListAlt, FaPlus, FaSync, FaShower } from 'react-icons/fa';
+import { FaBuilding, FaCar, FaListAlt, FaPlus, FaSync, FaClipboardList } from 'react-icons/fa';
 import CompanyManager from './CompanyManager';
 import VehicleManager from './VehicleManager';
 import RecordList from './RecordList';
@@ -235,7 +235,7 @@ const Home = ({ database }) => {
                                             onClick={toggleWashItemModal}
                                             className="text-center py-3"
                                         >
-                                            <FaShower className="d-block mx-auto mb-1" />
+                                            <FaClipboardList className="d-block mx-auto mb-1" />
                                             <span className="small">服務項目</span>
                                         </Nav.Link>
                                     </Nav.Item>
@@ -288,7 +288,7 @@ const Home = ({ database }) => {
                                             onClick={toggleWashItemModal}
                                             className="d-flex align-items-center py-2 mt-2"
                                         >
-                                            <FaShower className="me-2" /> 服務項目
+                                            <FaClipboardList className="me-2" /> 服務項目
                                         </Nav.Link>
                                     </Nav.Item>
                                 </Nav>

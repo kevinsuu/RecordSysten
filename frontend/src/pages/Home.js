@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
-import { FaCog, FaFileExcel, FaSignOutAlt, FaShower, FaGripVertical } from 'react-icons/fa';
+import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt, FaGripVertical } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -385,7 +385,7 @@ function Home() {
                     <Navbar.Collapse id="basic-navbar-nav" className="justify-content-end">
                         <Nav>
                             <Nav.Link onClick={() => setShowWashItemManager(true)} className="d-flex align-items-center me-3">
-                                <FaShower className="me-1" /> 服務項目管理
+                                <FaListAlt className="me-1" /> 服務項目管理
                             </Nav.Link>
                             <Nav.Link onClick={handleLogout} className="d-flex align-items-center">
                                 <FaSignOutAlt className="me-1" /> 登出
@@ -420,145 +420,165 @@ function Home() {
                         {!isMobile ? (
                             // 桌面版控制區域
                             <>
-                                <Row className="mb-3">
-                                    {/* 公司選擇 */}
-                                    <Col md={3} className="mb-2">
-                                        <Form.Group className="d-flex align-items-center">
-                                            <Form.Label className="me-2 mb-0">公司:</Form.Label>
-                                            <Form.Select
-                                                value={selectedCompany}
-                                                onChange={(e) => setSelectedCompany(e.target.value)}
-                                                className="flex-grow-1"
-                                            >
-                                                <option value="all">全部公司</option>
-                                                {Object.entries(data.companies || {})
-                                                    .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                                    .map(([id, company]) => (
-                                                        <option key={id} value={id}>{company.name}</option>
-                                                    ))
-                                                }
-                                            </Form.Select>
-                                            <Button
-                                                variant="light"
-                                                className="ms-1 p-1"
-                                                title="管理公司"
-                                                onClick={() => setShowCompanyManager(true)}
-                                            >
-                                                <FaCog />
-                                            </Button>
-                                        </Form.Group>
-                                    </Col>
+                                <div className="bg-light p-3 rounded mb-3">
+                                    <Row className="mb-2">
+                                        {/* 公司選擇 */}
+                                        <Col md={4} className="mb-2">
+                                            <div className="d-flex align-items-center">
+                                                <Form.Label className="fw-bold me-2 mb-0" style={{ minWidth: "20px" }}>公司</Form.Label>
+                                                <div className="d-flex flex-grow-1">
+                                                    <Form.Select
+                                                        value={selectedCompany}
+                                                        onChange={(e) => setSelectedCompany(e.target.value)}
+                                                        className="flex-grow-1"
+                                                    >
+                                                        <option value="all">全部公司</option>
+                                                        {Object.entries(data.companies || {})
+                                                            .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                                                            .map(([id, company]) => (
+                                                                <option key={id} value={id}>{company.name}</option>
+                                                            ))
+                                                        }
+                                                    </Form.Select>
+                                                    <Button
+                                                        variant="light"
+                                                        className="ms-2 px-2"
+                                                        title="管理公司"
+                                                        onClick={() => setShowCompanyManager(true)}
+                                                    >
+                                                        <FaCog />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </Col>
 
-                                    {/* 車輛選擇 */}
-                                    <Col md={3} className="mb-2">
-                                        <Form.Group className="d-flex align-items-center">
-                                            <Form.Label className="me-2 mb-0">車輛:</Form.Label>
-                                            <Form.Select
-                                                value={selectedVehicle}
-                                                onChange={(e) => setSelectedVehicle(e.target.value)}
-                                                className="flex-grow-1"
-                                            >
-                                                <option value="all">全部車輛</option>
-                                                {selectedCompany !== 'all' &&
-                                                    Object.entries(data.companies[selectedCompany]?.vehicles || {})
-                                                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                                        .map(([id, vehicle]) => (
-                                                            <option key={id} value={id}>
-                                                                {vehicle.plate} ({vehicle.type})
-                                                            </option>
-                                                        ))
-                                                }
-                                            </Form.Select>
-                                            <Button
-                                                variant="light"
-                                                className="ms-1 p-1"
-                                                title="管理車輛"
-                                                onClick={() => {
-                                                    if (selectedCompany === 'all') {
-                                                        showNotification('請先選擇一個公司', 'warning');
-                                                        return;
-                                                    }
-                                                    setShowVehicleManager(true);
-                                                }}
-                                            >
-                                                <FaCog />
-                                            </Button>
-                                        </Form.Group>
-                                    </Col>
+                                        {/* 車輛選擇 */}
+                                        <Col md={4} className="mb-2">
+                                            <div className="d-flex align-items-center">
+                                                <Form.Label className="fw-bold me-2 mb-0" style={{ minWidth: "20px" }}>車輛</Form.Label>
+                                                <div className="d-flex flex-grow-1">
+                                                    <Form.Select
+                                                        value={selectedVehicle}
+                                                        onChange={(e) => setSelectedVehicle(e.target.value)}
+                                                        className="flex-grow-1"
+                                                    >
+                                                        <option value="all">全部車輛</option>
+                                                        {selectedCompany !== 'all' &&
+                                                            Object.entries(data.companies[selectedCompany]?.vehicles || {})
+                                                                .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                                                                .map(([id, vehicle]) => (
+                                                                    <option key={id} value={id}>
+                                                                        {vehicle.plate} ({vehicle.type})
+                                                                    </option>
+                                                                ))
+                                                        }
+                                                    </Form.Select>
+                                                    <Button
+                                                        variant="light"
+                                                        className="ms-2 px-2"
+                                                        title="管理車輛"
+                                                        onClick={() => {
+                                                            if (selectedCompany === 'all') {
+                                                                showNotification('請先選擇一個公司', 'warning');
+                                                                return;
+                                                            }
+                                                            setShowVehicleManager(true);
+                                                        }}
+                                                    >
+                                                        <FaCog />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </Col>
 
-                                    {/* 按鈕區 */}
-                                    <Col md={6} className="mb-2 d-flex justify-content-end">
-                                        <Button
-                                            variant="primary"
-                                            className="me-2"
-                                            onClick={() => setShowAddRecord(true)}
-                                        >
-                                            新增紀錄
-                                        </Button>
-                                        <Button
-                                            variant="success"
-                                            onClick={exportToExcel}
-                                        >
-                                            <FaFileExcel className="me-1" />
-                                            匯出篩選資料
-                                        </Button>
-                                    </Col>
-                                </Row>
+                                        {/* 按鈕區 */}
+                                        <Col md={4} className="mb-2">
+                                            <div className="d-flex align-items-center">
+                                                <div className="d-flex justify-content-end flex-grow-1">
+                                                    <Button
+                                                        variant="primary"
+                                                        className="me-2"
+                                                        onClick={() => setShowAddRecord(true)}
+                                                    >
+                                                        新增紀錄
+                                                    </Button>
+                                                    <Button
+                                                        variant="success"
+                                                        onClick={exportToExcel}
+                                                    >
+                                                        <FaFileExcel className="me-1" />
+                                                        匯出篩選資料
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </Col>
+                                    </Row>
 
-                                {/* 桌面版搜尋區域 */}
-                                <Row className="mb-3">
-                                    {/* 日期範圍選擇 */}
-                                    <Col md={6} className="mb-2">
-                                        <Form.Group className="d-flex align-items-center">
-                                            <Form.Label className="me-2 mb-0">日期從:</Form.Label>
-                                            <div style={{ zIndex: 100, position: "relative" }}>
-                                                <DatePicker
-                                                    selected={startDate}
-                                                    onChange={date => setStartDate(date)}
-                                                    className="form-control me-2"
-                                                    dateFormat="yyyy-MM-dd"
+                                    {/* 桌面版搜尋區域 */}
+                                    <Row className="mt-3">
+                                        {/* 日期範圍選擇 */}
+                                        <Col md={6} className="mb-2">
+                                            <div className="d-flex align-items-center">
+                                                <Form.Label className="fw-bold me-2 mb-0" style={{ minWidth: "80px" }}>日期範圍</Form.Label>
+                                                <div className="d-flex flex-wrap align-items-center flex-grow-1">
+                                                    <div style={{ zIndex: 100, position: "relative", minWidth: "140px" }} className="me-2 mb-1">
+                                                        <DatePicker
+                                                            selected={startDate}
+                                                            onChange={date => setStartDate(date)}
+                                                            className="form-control"
+                                                            dateFormat="yyyy-MM-dd"
+                                                            placeholderText="起始日期"
+                                                        />
+                                                    </div>
+                                                    <span className="mx-2 mb-1">至</span>
+                                                    <div style={{ zIndex: 100, position: "relative", minWidth: "140px" }} className="mb-1">
+                                                        <DatePicker
+                                                            selected={endDate}
+                                                            onChange={date => setEndDate(date)}
+                                                            className="form-control"
+                                                            dateFormat="yyyy-MM-dd"
+                                                            placeholderText="結束日期"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </Col>
+
+                                        {/* 搜尋輸入 */}
+                                        <Col md={4} className="mb-2">
+                                            <div className="d-flex align-items-center">
+                                                <Form.Label className="fw-bold me-2 mb-0" style={{ minWidth: "80px" }}>關鍵字搜尋</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    placeholder="搜尋類型、日期、公司、車牌、服務項目..."
+                                                    value={searchText}
+                                                    onChange={e => setSearchText(e.target.value)}
                                                 />
                                             </div>
-                                            <Form.Label className="me-2 mb-0">到:</Form.Label>
-                                            <div style={{ zIndex: 100, position: "relative" }}>
-                                                <DatePicker
-                                                    selected={endDate}
-                                                    onChange={date => setEndDate(date)}
-                                                    className="form-control"
-                                                    dateFormat="yyyy-MM-dd"
-                                                />
+                                        </Col>
+
+                                        {/* 清除搜尋按鈕 */}
+                                        <Col md={2} className="mb-2">
+                                            <div className="d-flex align-items-center">
+
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={clearSearch}
+                                                    className="flex-grow-1"
+                                                >
+                                                    清除搜尋
+                                                </Button>
                                             </div>
-                                        </Form.Group>
-                                    </Col>
-
-                                    {/* 搜尋輸入 */}
-                                    <Col md={4} className="mb-2">
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="搜尋類型、日期、公司、車牌、車種、服務項目、備註、金額..."
-                                            value={searchText}
-                                            onChange={e => setSearchText(e.target.value)}
-                                        />
-                                    </Col>
-
-                                    {/* 清除搜尋按鈕 */}
-                                    <Col md={2} className="mb-2">
-                                        <Button
-                                            variant="secondary"
-                                            onClick={clearSearch}
-                                            className="w-100"
-                                        >
-                                            清除搜尋
-                                        </Button>
-                                    </Col>
-                                </Row>
+                                        </Col>
+                                    </Row>
+                                </div>
                             </>
                         ) : (
                             // 移動版控制區域
-                            <div className="mb-3">
+                            <div className="bg-light p-3 rounded mb-3">
                                 {/* 公司選擇 */}
-                                <Form.Group className="mb-2">
-                                    <Form.Label>公司:</Form.Label>
+                                <Form.Group className="mb-3">
+                                    <Form.Label className="fw-bold mb-2">公司</Form.Label>
                                     <div className="d-flex">
                                         <Form.Select
                                             value={selectedCompany}
@@ -575,7 +595,7 @@ function Home() {
                                         </Form.Select>
                                         <Button
                                             variant="light"
-                                            className="ms-1 p-1"
+                                            className="ms-2 px-2"
                                             title="管理公司"
                                             onClick={() => setShowCompanyManager(true)}
                                         >
@@ -585,8 +605,8 @@ function Home() {
                                 </Form.Group>
 
                                 {/* 車輛選擇 */}
-                                <Form.Group className="mb-2">
-                                    <Form.Label>車輛:</Form.Label>
+                                <Form.Group className="mb-3">
+                                    <Form.Label className="fw-bold mb-2">車輛</Form.Label>
                                     <div className="d-flex">
                                         <Form.Select
                                             value={selectedVehicle}
@@ -606,7 +626,7 @@ function Home() {
                                         </Form.Select>
                                         <Button
                                             variant="light"
-                                            className="ms-1 p-1"
+                                            className="ms-2 px-2"
                                             title="管理車輛"
                                             onClick={() => {
                                                 if (selectedCompany === 'all') {
@@ -622,35 +642,43 @@ function Home() {
                                 </Form.Group>
 
                                 {/* 移動版日期範圍選擇 */}
-                                <Form.Group className="mb-2">
-                                    <Form.Label>日期從:</Form.Label>
-                                    <div style={{ zIndex: 100, position: "relative" }}>
-                                        <DatePicker
-                                            selected={startDate}
-                                            onChange={date => setStartDate(date)}
-                                            className="form-control w-100 mb-1"
-                                            dateFormat="yyyy-MM-dd"
-                                        />
+                                <Form.Group className="mb-3 mt-2">
+                                    <Form.Label className="fw-bold mb-2">日期範圍</Form.Label>
+                                    <div className="mb-2">
+                                        <Form.Label className="text-muted small">起始日期</Form.Label>
+                                        <div style={{ zIndex: 100, position: "relative" }}>
+                                            <DatePicker
+                                                selected={startDate}
+                                                onChange={date => setStartDate(date)}
+                                                className="form-control w-100"
+                                                dateFormat="yyyy-MM-dd"
+                                                placeholderText="起始日期"
+                                            />
+                                        </div>
                                     </div>
-                                    <Form.Label>到:</Form.Label>
-                                    <div style={{ zIndex: 100, position: "relative" }}>
-                                        <DatePicker
-                                            selected={endDate}
-                                            onChange={date => setEndDate(date)}
-                                            className="form-control w-100"
-                                            dateFormat="yyyy-MM-dd"
-                                        />
+                                    <div>
+                                        <Form.Label className="text-muted small">結束日期</Form.Label>
+                                        <div style={{ zIndex: 100, position: "relative" }}>
+                                            <DatePicker
+                                                selected={endDate}
+                                                onChange={date => setEndDate(date)}
+                                                className="form-control w-100"
+                                                dateFormat="yyyy-MM-dd"
+                                                placeholderText="結束日期"
+                                            />
+                                        </div>
                                     </div>
                                 </Form.Group>
 
                                 {/* 移動版搜尋輸入 */}
-                                <Form.Group className="mb-2">
+                                <Form.Group className="mb-3">
+                                    <Form.Label className="fw-bold mb-2">關鍵字搜尋</Form.Label>
                                     <Form.Control
                                         type="text"
-                                        placeholder="搜尋類型、日期、公司、車牌、車種、服務項目、備註、金額..."
+                                        placeholder="搜尋類型、日期、公司、車牌、服務項目..."
                                         value={searchText}
                                         onChange={e => setSearchText(e.target.value)}
-                                        className="mb-1"
+                                        className="mb-2"
                                     />
                                     <Button
                                         variant="secondary"

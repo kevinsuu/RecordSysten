@@ -709,41 +709,43 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             </Modal>
 
             {/* 車輛類型管理對話框 */}
-            <Modal show={showTypeManagerModal} onHide={() => setShowTypeManagerModal(false)}>
+            <Modal
+                show={showTypeManagerModal}
+                onHide={() => setShowTypeManagerModal(false)}
+                size="lg"
+                centered
+            >
                 <Modal.Header closeButton>
                     <Modal.Title>管理車輛類型</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
-                        <Form.Group className="mb-3">
-                            <Form.Label>新增車輛類型</Form.Label>
-                            <div className="d-flex">
-                                <Form.Control
-                                    type="text"
-                                    placeholder="輸入新類型名稱"
-                                    value={newTypeInput}
-                                    onChange={(e) => setNewTypeInput(e.target.value)}
-                                    className="flex-grow-1"
-                                />
-                                <Button
-                                    variant="primary"
-                                    className="ms-2"
-                                    onClick={addVehicleType}
-                                >
-                                    新增
-                                </Button>
-                            </div>
-                            {typeError && <div className="text-danger mt-1">{typeError}</div>}
+                        <Form.Group className="mb-4">
+                            <Form.Label><strong>新增車輛類型</strong></Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入新類型名稱"
+                                value={newTypeInput}
+                                onChange={(e) => setNewTypeInput(e.target.value)}
+                                className="mb-2"
+                            />
+                            <Button
+                                variant="primary"
+                                onClick={addVehicleType}
+                            >
+                                新增車輛類型
+                            </Button>
+                            {typeError && <div className="text-danger mt-2">{typeError}</div>}
                         </Form.Group>
 
-                        <h6 className="mt-4 mb-2">現有車輛類型</h6>
+                        <h6 className="mt-4 mb-3"><strong>現有車輛類型</strong></h6>
                         <ListGroup>
                             {vehicleTypes.map((type, index) => (
                                 <ListGroup.Item
                                     key={index}
-                                    className="d-flex justify-content-between align-items-center"
+                                    className="d-flex justify-content-between align-items-center mb-2 border rounded"
                                 >
-                                    <span>{type}</span>
+                                    <span className="fs-5">{type}</span>
                                     <Button
                                         variant="outline-danger"
                                         size="sm"
@@ -754,6 +756,12 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
                                 </ListGroup.Item>
                             ))}
                         </ListGroup>
+
+                        {vehicleTypes.length === 0 && (
+                            <div className="text-center p-3 bg-light rounded">
+                                尚未添加任何車輛類型
+                            </div>
+                        )}
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
