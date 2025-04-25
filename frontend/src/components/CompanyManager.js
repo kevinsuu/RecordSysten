@@ -15,6 +15,9 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedCompany, setSelectedCompany] = useState(null);
     const [companyName, setCompanyName] = useState('');
+    const [taxId, setTaxId] = useState('');
+    const [phone, setPhone] = useState('');
+    const [address, setAddress] = useState('');
     const [error, setError] = useState('');
 
     // 添加公司
@@ -28,6 +31,9 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             // 建立新公司物件
             const newCompany = {
                 name: companyName.trim(),
+                tax_id: taxId.trim(),
+                phone: phone.trim(),
+                address: address.trim(),
                 vehicles: {},
                 sort_index: companies.length
             };
@@ -42,6 +48,9 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
 
             // 清除表單
             setCompanyName('');
+            setTaxId('');
+            setPhone('');
+            setAddress('');
             setShowAddModal(false);
             setError('');
 
@@ -62,11 +71,20 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
 
         try {
             // 更新選中的公司
-            const updatedCompany = { ...selectedCompany, name: companyName.trim() };
+            const updatedCompany = {
+                ...selectedCompany,
+                name: companyName.trim(),
+                tax_id: taxId.trim(),
+                phone: phone.trim(),
+                address: address.trim()
+            };
 
             // 更新 Firebase
             await set(ref(database, `companies/${selectedCompany.id}`), {
                 name: updatedCompany.name,
+                tax_id: updatedCompany.tax_id,
+                phone: updatedCompany.phone,
+                address: updatedCompany.address,
                 vehicles: updatedCompany.vehicles || {},
                 sort_index: updatedCompany.sort_index
             });
@@ -79,6 +97,9 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
 
             // 清除表單
             setCompanyName('');
+            setTaxId('');
+            setPhone('');
+            setAddress('');
             setSelectedCompany(null);
             setShowEditModal(false);
             setError('');
@@ -150,6 +171,15 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
         if (onSave) onSave();
     };
 
+    // 清除表單
+    const resetForm = () => {
+        setCompanyName('');
+        setTaxId('');
+        setPhone('');
+        setAddress('');
+        setError('');
+    };
+
     return (
         <div className="company-manager">
             <Row className="mb-3">
@@ -157,8 +187,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                     <Button
                         variant="primary"
                         onClick={() => {
-                            setCompanyName('');
-                            setError('');
+                            resetForm();
                             setShowAddModal(true);
                         }}
                     >
@@ -197,6 +226,9 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                                                         onClick={() => {
                                                             setSelectedCompany(company);
                                                             setCompanyName(company.name);
+                                                            setTaxId(company.tax_id || '');
+                                                            setPhone(company.phone || '');
+                                                            setAddress(company.address || '');
                                                             setError('');
                                                             setShowEditModal(true);
                                                         }}
@@ -234,8 +266,68 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                     <Modal.Title>新增公司</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <Form.Group>
-                        <Form.Label>公司名稱</Form.Label>
+                    <Form.Group className="mb-3">
+                        <Form.Label>公司名稱:</Form.Label>
+                        <Form.Control
+                            type="text"
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            placeholder="請輸入公司名稱"
+                            isInvalid={!!error}
+                        />
+                        <Form.Control.Feedback type="invalid">
+                            {error}
+                        </Form.Control.Feedback>
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>統一編號:</Form.Label>
+                        <Form.Control
+                            type="text"
+                            value={taxId}
+                            onChange={(e) => setTaxId(e.target.value)}
+                            placeholder="請輸入統一編號"
+                        />
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>電話:</Form.Label>
+                        <Form.Control
+                            type="text"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="請輸入電話"
+                        />
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>地址:</Form.Label>
+                        <Form.Control
+                            type="text"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="請輸入地址"
+                        />
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+                        取消
+                    </Button>
+                    <Button variant="primary" onClick={addCompany}>
+                        儲存
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* 編輯公司對話框 */}
+            <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>公司資料</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group className="mb-3">
+                        <Form.Label>公司名稱:</Form.Label>
                         <Form.Control
                             type="text"
                             value={companyName}
@@ -246,34 +338,35 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                             {error}
                         </Form.Control.Feedback>
                     </Form.Group>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowAddModal(false)}>
-                        取消
-                    </Button>
-                    <Button variant="primary" onClick={addCompany}>
-                        新增
-                    </Button>
-                </Modal.Footer>
-            </Modal>
 
-            {/* 編輯公司對話框 */}
-            <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>編輯公司</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form.Group>
-                        <Form.Label>公司名稱</Form.Label>
+                    <Form.Group className="mb-3">
+                        <Form.Label>統一編號:</Form.Label>
                         <Form.Control
                             type="text"
-                            value={companyName}
-                            onChange={(e) => setCompanyName(e.target.value)}
-                            isInvalid={!!error}
+                            value={taxId}
+                            onChange={(e) => setTaxId(e.target.value)}
+                            placeholder="請輸入統一編號"
                         />
-                        <Form.Control.Feedback type="invalid">
-                            {error}
-                        </Form.Control.Feedback>
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>電話:</Form.Label>
+                        <Form.Control
+                            type="text"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="請輸入電話"
+                        />
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>地址:</Form.Label>
+                        <Form.Control
+                            type="text"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="請輸入地址"
+                        />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>

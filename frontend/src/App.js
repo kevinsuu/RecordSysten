@@ -2,17 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import Home from './pages/Home';
-import Login from './components/Login';
+import Login from './pages/Login';
 import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser) {
+        // 檢查是否是允許的電子郵件
+        if (currentUser.email === 'sjs47311@gmail.com') {
+          setUser(currentUser);
+          setAccessDenied(false);
+        } else {
+          // 如果不是允許的電子郵件，登出並設置訪問拒絕狀態
+          setAccessDenied(true);
+          auth.signOut();
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+        setAccessDenied(false);
+      }
       setLoading(false);
     });
 
@@ -40,7 +55,10 @@ function App() {
   return (
     <Router basename={process.env.PUBLIC_URL}>
       <Routes>
-        <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+        <Route path="/login" element={
+          user ? <Navigate to="/" /> :
+            <Login accessDenied={accessDenied} />
+        } />
         <Route path="/" element={
           <ProtectedRoute>
             <Home />

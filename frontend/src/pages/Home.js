@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
-import { FaCog, FaFileExcel, FaSignOutAlt } from 'react-icons/fa';
+import { FaCog, FaFileExcel, FaSignOutAlt, FaShower } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
 import CompanyManager from '../components/CompanyManager';
 import VehicleManager from '../components/VehicleManager';
 import AddRecordForm from '../components/AddRecordForm';
+import WashItemManager from '../components/WashItemManager';
 import * as firebaseService from '../services/firebase';
 import { database } from '../services/firebase';
 import { getAuth, signOut } from 'firebase/auth';
@@ -30,6 +31,7 @@ function Home() {
     const [showCompanyManager, setShowCompanyManager] = useState(false);
     const [showVehicleManager, setShowVehicleManager] = useState(false);
     const [showAddRecord, setShowAddRecord] = useState(false);
+    const [showWashItemManager, setShowWashItemManager] = useState(false);
 
     // 處理登出
     const handleLogout = async () => {
@@ -113,8 +115,27 @@ function Home() {
 
         // 依據日期範圍過濾
         filtered = filtered.filter(record => {
-            const recordDate = new Date(record.date);
-            return recordDate >= startDate && recordDate <= endDate;
+            // 將日期字符串轉換為日期對象 (格式應為 'YYYY-MM-DD')
+            const dateParts = record.date.split('-');
+            if (dateParts.length !== 3) return false;
+
+            const recordDate = new Date(
+                parseInt(dateParts[0]),
+                parseInt(dateParts[1]) - 1, // 月份從0開始
+                parseInt(dateParts[2])
+            );
+
+            // 確保日期有效
+            if (isNaN(recordDate.getTime())) return false;
+
+            // 設置比較日期，確保包含整天
+            const compareStartDate = new Date(startDate);
+            compareStartDate.setHours(0, 0, 0, 0);
+
+            const compareEndDate = new Date(endDate);
+            compareEndDate.setHours(23, 59, 59, 999);
+
+            return recordDate >= compareStartDate && recordDate <= compareEndDate;
         });
 
         // 依據搜尋文字過濾
@@ -122,22 +143,30 @@ function Home() {
             const search = searchText.toLowerCase();
             filtered = filtered.filter(record => {
                 // 檢查各種欄位是否包含搜尋文字
-                const typeMatch = record.payment_type?.toLowerCase().includes(search);
+                const typeMatch = record.payment_type?.toLowerCase().includes(search) ||
+                    getPaymentTypeText(record.payment_type)?.toLowerCase().includes(search);
                 const dateMatch = record.date?.toLowerCase().includes(search);
                 const companyMatch = record.companyName?.toLowerCase().includes(search);
                 const plateMatch = record.vehicle?.plate?.toLowerCase().includes(search);
                 const typeVehicleMatch = record.vehicle?.type?.toLowerCase().includes(search);
 
+                // 檢查金額是否匹配
+                const totalAmount = calculateTotal(record.items);
+                const amountMatch = totalAmount.toString().includes(search);
+
                 // 檢查服務項目是否包含搜尋文字
                 const itemsMatch = record.items.some(item => {
                     if (typeof item === 'string') return item.toLowerCase().includes(search);
-                    return item.name.toLowerCase().includes(search);
+                    const nameMatch = item.name.toLowerCase().includes(search);
+                    const priceMatch = item.price.toString().includes(search);
+                    return nameMatch || priceMatch;
                 });
 
                 // 檢查備註是否包含搜尋文字
                 const remarksMatch = record.remarks?.toLowerCase().includes(search);
 
-                return typeMatch || dateMatch || companyMatch || plateMatch || typeVehicleMatch || itemsMatch || remarksMatch;
+                return typeMatch || dateMatch || companyMatch || plateMatch || typeVehicleMatch ||
+                    itemsMatch || remarksMatch || amountMatch;
             });
         }
 
@@ -289,6 +318,9 @@ function Home() {
                     <Navbar.Toggle aria-controls="basic-navbar-nav" />
                     <Navbar.Collapse id="basic-navbar-nav" className="justify-content-end">
                         <Nav>
+                            <Nav.Link onClick={() => setShowWashItemManager(true)} className="d-flex align-items-center me-3">
+                                <FaShower className="me-1" /> 洗車項目管理
+                            </Nav.Link>
                             <Nav.Link onClick={handleLogout} className="d-flex align-items-center">
                                 <FaSignOutAlt className="me-1" /> 登出
                             </Nav.Link>
@@ -413,19 +445,23 @@ function Home() {
                                     <Col md={6} className="mb-2">
                                         <Form.Group className="d-flex align-items-center">
                                             <Form.Label className="me-2 mb-0">日期從:</Form.Label>
-                                            <DatePicker
-                                                selected={startDate}
-                                                onChange={date => setStartDate(date)}
-                                                className="form-control me-2"
-                                                dateFormat="yyyy-MM-dd"
-                                            />
+                                            <div style={{ zIndex: 100, position: "relative" }}>
+                                                <DatePicker
+                                                    selected={startDate}
+                                                    onChange={date => setStartDate(date)}
+                                                    className="form-control me-2"
+                                                    dateFormat="yyyy-MM-dd"
+                                                />
+                                            </div>
                                             <Form.Label className="me-2 mb-0">到:</Form.Label>
-                                            <DatePicker
-                                                selected={endDate}
-                                                onChange={date => setEndDate(date)}
-                                                className="form-control"
-                                                dateFormat="yyyy-MM-dd"
-                                            />
+                                            <div style={{ zIndex: 100, position: "relative" }}>
+                                                <DatePicker
+                                                    selected={endDate}
+                                                    onChange={date => setEndDate(date)}
+                                                    className="form-control"
+                                                    dateFormat="yyyy-MM-dd"
+                                                />
+                                            </div>
                                         </Form.Group>
                                     </Col>
 
@@ -433,7 +469,7 @@ function Home() {
                                     <Col md={4} className="mb-2">
                                         <Form.Control
                                             type="text"
-                                            placeholder="搜尋服務項目、備註..."
+                                            placeholder="搜尋類型、日期、公司、車牌、車種、服務項目、備註、金額..."
                                             value={searchText}
                                             onChange={e => setSearchText(e.target.value)}
                                         />
@@ -522,26 +558,30 @@ function Home() {
                                 {/* 移動版日期範圍選擇 */}
                                 <Form.Group className="mb-2">
                                     <Form.Label>日期從:</Form.Label>
-                                    <DatePicker
-                                        selected={startDate}
-                                        onChange={date => setStartDate(date)}
-                                        className="form-control w-100 mb-1"
-                                        dateFormat="yyyy-MM-dd"
-                                    />
+                                    <div style={{ zIndex: 100, position: "relative" }}>
+                                        <DatePicker
+                                            selected={startDate}
+                                            onChange={date => setStartDate(date)}
+                                            className="form-control w-100 mb-1"
+                                            dateFormat="yyyy-MM-dd"
+                                        />
+                                    </div>
                                     <Form.Label>到:</Form.Label>
-                                    <DatePicker
-                                        selected={endDate}
-                                        onChange={date => setEndDate(date)}
-                                        className="form-control w-100"
-                                        dateFormat="yyyy-MM-dd"
-                                    />
+                                    <div style={{ zIndex: 100, position: "relative" }}>
+                                        <DatePicker
+                                            selected={endDate}
+                                            onChange={date => setEndDate(date)}
+                                            className="form-control w-100"
+                                            dateFormat="yyyy-MM-dd"
+                                        />
+                                    </div>
                                 </Form.Group>
 
                                 {/* 移動版搜尋輸入 */}
                                 <Form.Group className="mb-2">
                                     <Form.Control
                                         type="text"
-                                        placeholder="搜尋服務項目、備註..."
+                                        placeholder="搜尋類型、日期、公司、車牌、車種、服務項目、備註、金額..."
                                         value={searchText}
                                         onChange={e => setSearchText(e.target.value)}
                                         className="mb-1"
@@ -695,6 +735,24 @@ function Home() {
                                         loadData();
                                         setShowAddRecord(false);
                                     }}
+                                />
+                            </Modal.Body>
+                        </Modal>
+
+                        {/* 洗車項目管理對話框 */}
+                        <Modal
+                            show={showWashItemManager}
+                            onHide={() => setShowWashItemManager(false)}
+                            size="lg"
+                            fullscreen={isMobile}
+                        >
+                            <Modal.Header closeButton>
+                                <Modal.Title>洗車項目管理</Modal.Title>
+                            </Modal.Header>
+                            <Modal.Body>
+                                <WashItemManager
+                                    database={database}
+                                    onSave={loadData}
                                 />
                             </Modal.Body>
                         </Modal>
