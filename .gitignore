@@ -1,5 +1,8 @@
 # Firebase 相關
 *.json
+!package.json
+!package-lock.json
+!manifest.json
 firebase-credentials.json
 firebase-adminsdk.json
 serviceAccountKey.json
@@ -48,8 +51,8 @@ logs/
 # testing
 /coverage
 
-# production
-/build
+# 不再忽略構建目錄
+# /build
 
 # misc
 .DS_Store
@@ -61,6 +64,5 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-node_modules
 .cache
 *.pack
