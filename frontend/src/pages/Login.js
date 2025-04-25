@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Form } from 'react-bootstrap';
-import { FaGoogle, FaUser, FaLock } from 'react-icons/fa';
+import { Container, Alert, Button } from 'react-bootstrap';
+import { FaGoogle } from 'react-icons/fa';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import logo from '../assets/image.png';
 
@@ -8,8 +8,6 @@ const Login = ({ accessDenied }) => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
 
     // 如果接收到訪問拒絕的狀態，設置相應的錯誤消息
     useEffect(() => {
@@ -37,30 +35,101 @@ const Login = ({ accessDenied }) => {
         const addLoginStyles = () => {
             const styleEl = document.createElement('style');
             styleEl.innerHTML = `
+                .login-page {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    background-color: #f8f9fa;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .login-page::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 60px;
+                    background-color: #f8f9fa;
+                    border-bottom: 1px solid #dee2e6;
+                    z-index: 1;
+                }
+                
+                .login-container {
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+                    padding: 40px;
+                    width: 400px;
+                    position: relative;
+                    z-index: 2;
+                }
+                
+                .login-logo {
+                    width: 80px;
+                    height: 80px;
+                    margin: 0 auto 20px;
+                    display: block;
+                }
+                
+                .login-title {
+                    color: #495057;
+                    text-align: center;
+                    margin-bottom: 30px;
+                    font-size: 1.5rem;
+                    font-weight: 500;
+                }
+                
+                .google-btn {
+                    width: 100%;
+                    padding: 12px;
+                    font-size: 1rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                    background-color: #0d6efd;
+                    border: none;
+                    border-radius: 4px;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 2px 6px rgba(13, 110, 253, 0.2);
+                }
+                
+                .google-btn:hover {
+                    background-color: #0b5ed7;
+                    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+                    transform: translateY(-1px);
+                }
+                
+                .google-btn:active {
+                    transform: translateY(0);
+                    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.2);
+                }
+                
+                .google-btn:disabled {
+                    background-color: #6c757d;
+                    box-shadow: none;
+                    transform: none;
+                }
+                
+                .alert {
+                    border-radius: 4px;
+                    font-size: 0.9rem;
+                }
+                
                 @media (max-width: 768px) {
                     .login-container {
-                        width: 90% !important;
-                        padding: 30px 20px !important;
-                        margin-top: 20px !important;
+                        width: 90%;
+                        padding: 30px 20px;
+                        margin: 20px;
                     }
-                    .google-btn {
-                        width: 100% !important;
-                        font-size: 1rem !important;
-                        padding: 12px !important;
-                        margin-bottom: 20px !important;
-                    }
-                    .login-title {
-                        font-size: 1.5rem !important;
-                        margin-bottom: 25px !important;
-                    }
-                    .form-group {
-                        margin-bottom: 15px !important;
-                    }
-                    .login-btn {
-                        width: 100% !important;
-                        padding: 12px !important;
-                        font-size: 1rem !important;
-                        margin-top: 10px !important;
+                    
+                    .login-logo {
+                        width: 60px;
+                        height: 60px;
+                        margin-bottom: 15px;
                     }
                 }
             `;
@@ -80,72 +149,20 @@ const Login = ({ accessDenied }) => {
             setError(null);
 
             const auth = getAuth();
-            console.log("Firebase Auth 初始化狀態:", auth);
-
             const provider = new GoogleAuthProvider();
 
-            // 設置自定義參數，可能有助於解決一些身份驗證問題
             provider.setCustomParameters({
-                prompt: 'select_account',
-                login_hint: 'user@example.com'
+                prompt: 'select_account'
             });
 
-            // 使用帶有重定向的版本作為備選
-            try {
-                const result = await signInWithPopup(auth, provider);
+            const result = await signInWithPopup(auth, provider);
 
-                // 檢查登入的 email 是否為指定帳號
-                const email = result.user.email;
-                if (email !== process.env.REACT_APP_LOGIN_ACCOUNT1 && email !== process.env.REACT_APP_LOGIN_ACCOUNT2) {
-                    // 如果不是允許的電子郵件，則登出並顯示錯誤
-                    await auth.signOut();
-                    throw new Error('此 Google 帳號沒有權限訪問系統。');
-                }
-            } catch (popupError) {
-                console.warn("彈出式登入失敗，嘗試使用重定向方式:", popupError);
-                // 如果彈出視窗失敗，可能是由於瀏覽器阻止或其他原因
-                // 嘗試使用重定向方法
-                // 注意：此方法需要在 App.js 中額外處理重定向回來的邏輯
-                // import { signInWithRedirect, getRedirectResult } from "firebase/auth";
-                // await signInWithRedirect(auth, provider);
-                throw popupError; // 仍然拋出錯誤以保持錯誤處理流程
-            }
-
-            // 登入成功後由 App.js 中的 onAuthStateChanged 處理導航
-        } catch (error) {
-            console.error('登入失敗:', error);
-            // 顯示更詳細的錯誤信息
-            setError(`錯誤代碼: ${error.code || '訪問權限錯誤'}, 錯誤信息: ${error.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // 處理帳號密碼登入
-    const handleCredentialLogin = async (e) => {
-        e.preventDefault();
-        try {
-            setLoading(true);
-            setError(null);
-
-            // 檢查電子郵件是否為允許的帳戶
+            // 檢查登入的 email 是否為指定帳號
+            const email = result.user.email;
             if (email !== process.env.REACT_APP_LOGIN_ACCOUNT1 && email !== process.env.REACT_APP_LOGIN_ACCOUNT2) {
-                throw new Error('此帳號沒有權限訪問系統');
+                await auth.signOut();
+                throw new Error('此 Google 帳號沒有權限訪問系統。');
             }
-
-            // 這裡可以添加密碼驗證邏輯
-            // 例如，如果密碼不正確，拋出錯誤
-            if (password !== process.env.REACT_APP_LOGIN_PASSWORD) {
-                throw new Error('密碼不正確');
-            }
-
-            // 登入成功後，可以設置本地存儲或 Cookie
-            localStorage.setItem('isAuthenticated', 'true');
-            localStorage.setItem('userEmail', email);
-
-            // 重新加載頁面或重定向到主頁
-            window.location.href = '/';
-
         } catch (error) {
             console.error('登入失敗:', error);
             setError(error.message);
@@ -155,21 +172,10 @@ const Login = ({ accessDenied }) => {
     };
 
     return (
-        <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
-        }}>
-            <div className="login-container" style={{
-                width: isMobile ? '90%' : '400px',
-                padding: '40px',
-                borderRadius: '10px',
-                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-                backgroundColor: 'white'
-            }}>
-                <h2 className="login-title" style={{ textAlign: 'center', marginBottom: '30px', color: '#3a3a3a' }}>車輛管理系統登入</h2>
+        <div className="login-page">
+            <div className="login-container">
+                <img src={logo} alt="系統 Logo" className="login-logo" />
+                <h2 className="login-title">電子紀錄系統</h2>
 
                 {error && (
                     <Alert variant="danger" className="mb-3">
@@ -180,80 +186,11 @@ const Login = ({ accessDenied }) => {
                 <Button
                     className="google-btn"
                     onClick={handleGoogleLogin}
-                    style={{
-                        backgroundColor: '#4285F4',
-                        color: 'white',
-                        border: 'none',
-                        padding: '10px 15px',
-                        width: '100%',
-                        marginBottom: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: isMobile ? '1rem' : '0.9rem',
-                        borderRadius: '5px'
-                    }}
                     disabled={loading}
                 >
-                    <FaGoogle style={{ marginRight: '10px' }} /> 使用 Google 登入
-                    {loading && <span className="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>}
+                    <FaGoogle /> 使用 Google 登入
+                    {loading && <span className="spinner-border spinner-border-sm ms-2" />}
                 </Button>
-
-                <div style={{ textAlign: 'center', margin: '15px 0', color: '#777', fontSize: '0.9rem' }}>
-                    或使用帳號密碼登入
-                </div>
-
-                <Form onSubmit={handleCredentialLogin}>
-                    <Form.Group className="form-group mb-3" controlId="formEmail">
-                        <Form.Label style={{ fontSize: '0.9rem', color: '#555' }}>電子郵件</Form.Label>
-                        <div style={{ position: 'relative' }}>
-                            <FaUser style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#aaa' }} />
-                            <Form.Control
-                                type="email"
-                                placeholder="請輸入電子郵件"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                style={{ paddingLeft: '35px' }}
-                            />
-                        </div>
-                    </Form.Group>
-
-                    <Form.Group className="form-group mb-3" controlId="formPassword">
-                        <Form.Label style={{ fontSize: '0.9rem', color: '#555' }}>密碼</Form.Label>
-                        <div style={{ position: 'relative' }}>
-                            <FaLock style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#aaa' }} />
-                            <Form.Control
-                                type="password"
-                                placeholder="請輸入密碼"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                style={{ paddingLeft: '35px' }}
-                            />
-                        </div>
-                    </Form.Group>
-
-                    <Button
-                        type="submit"
-                        className="login-btn"
-                        style={{
-                            backgroundColor: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '5px',
-                            padding: '10px 0',
-                            width: '100%',
-                            marginTop: '15px',
-                            cursor: 'pointer',
-                            fontSize: isMobile ? '1rem' : '0.9rem'
-                        }}
-                        disabled={loading}
-                    >
-                        登入
-                        {loading && <span className="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>}
-                    </Button>
-                </Form>
             </div>
         </div>
     );

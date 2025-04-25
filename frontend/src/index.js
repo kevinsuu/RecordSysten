@@ -15,3 +15,12 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 // reportWebVitals();
+
+// 過濾掉 react-beautiful-dnd 的 defaultProps 警告
+const originalConsoleWarn = console.warn;
+console.warn = function filterWarnings(msg, ...args) {
+  if (typeof msg === 'string' && msg.includes('defaultProps')) {
+    return;
+  }
+  originalConsoleWarn(msg, ...args);
+};
