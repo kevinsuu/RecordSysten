@@ -61,7 +61,7 @@ function Home() {
     const ACTIVITY_CHECK_INTERVAL = 5 * 60 * 1000; // 5分鐘檢查一次
 
     // 添加可收合的搜尋介面功能
-    const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+    const [isSearchExpanded, setIsSearchExpanded] = useState(true);
 
     // 處理登出
     const handleLogout = async () => {
