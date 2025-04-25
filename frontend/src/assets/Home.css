@@ -1,0 +1,112 @@
+/* 服務項目寬度可以自動伸展 */
+.table td.service-item-cell {
+    white-space: pre-line;
+    min-width: 200px;
+    width: auto;
+    max-width: 350px;
+}
+
+/* 表格內容自動換行 */
+.table td {
+    word-wrap: break-word;
+}
+
+/* 金額靠右對齊 */
+.table td.text-end {
+    white-space: nowrap;
+}
+
+/* 拖曳相關樣式 */
+.drag-container {
+    touch-action: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+}
+
+.drag-handle {
+    cursor: grab !important;
+    margin-right: 8px;
+    color: #888;
+    touch-action: none;
+    padding: 8px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+    color: #444;
+    background-color: #e0e0e0;
+    transform: scale(1.1);
+}
+
+.drag-handle:active {
+    cursor: grabbing !important;
+}
+
+/* 拖曳時的視覺效果 */
+.dragging {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+    opacity: 0.8 !important;
+    background-color: #f0f7ff !important;
+    border: 1px dashed #007bff !important;
+    z-index: 9999 !important;
+    pointer-events: auto !important;
+}
+
+/* ListGroup項目樣式 */
+.list-group-item {
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    margin-bottom: 4px !important;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* 滑鼠懸停效果 */
+.list-group-item:hover {
+    border-left-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+/* 公司與車輛列表項目特定樣式 */
+.company-item,
+.vehicle-item {
+    padding: 10px;
+    border-radius: 6px !important;
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+}
+
+/* 移動端觸控優化 */
+@media (hover: none) and (pointer: coarse) {
+    .drag-handle {
+        padding: 10px;
+        font-size: 20px;
+    }
+
+    .list-group-item {
+        padding: 12px;
+    }
+}
+
+/* 移動端樣式 */
+@media (max-width: 768px) {
+    .action-buttons-mobile {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #fff;
+        padding: 0.5rem;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        display: flex;
+        justify-content: space-around;
+    }
+
+    /* 為底部固定按鈕騰出空間 */
+    .table-container-mobile {
+        margin-bottom: 4rem;
+    }
+}

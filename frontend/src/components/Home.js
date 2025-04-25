@@ -77,7 +77,7 @@ const Home = ({ database }) => {
             const companiesRef = ref(database, 'companies');
             const companiesSnapshot = await get(companiesRef);
 
-            // 獲取洗車項目資料
+            // 獲取服務項目資料
             const washItemsRef = ref(database, 'washItems');
             const washItemsSnapshot = await get(washItemsRef);
 
@@ -236,7 +236,7 @@ const Home = ({ database }) => {
                                             className="text-center py-3"
                                         >
                                             <FaShower className="d-block mx-auto mb-1" />
-                                            <span className="small">洗車項目</span>
+                                            <span className="small">服務項目</span>
                                         </Nav.Link>
                                     </Nav.Item>
                                 </Nav>
@@ -288,7 +288,7 @@ const Home = ({ database }) => {
                                             onClick={toggleWashItemModal}
                                             className="d-flex align-items-center py-2 mt-2"
                                         >
-                                            <FaShower className="me-2" /> 洗車項目
+                                            <FaShower className="me-2" /> 服務項目
                                         </Nav.Link>
                                     </Nav.Item>
                                 </Nav>
@@ -357,7 +357,7 @@ const Home = ({ database }) => {
                 </Modal.Body>
             </Modal>
 
-            {/* 洗車項目管理視窗 */}
+            {/* 服務項目管理視窗 */}
             <Modal
                 show={showWashItemModal}
                 onHide={toggleWashItemModal}
@@ -365,7 +365,7 @@ const Home = ({ database }) => {
                 centered
             >
                 <Modal.Header closeButton>
-                    <Modal.Title>管理洗車項目</Modal.Title>
+                    <Modal.Title>管理服務項目</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <WashItemManager

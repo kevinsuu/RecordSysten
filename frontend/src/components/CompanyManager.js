@@ -1,18 +1,33 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button, Form, Row, Col, Modal, ListGroup } from 'react-bootstrap';
 import { ref, set, push, remove } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { FaGripVertical, FaBars } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
-// 需要安裝 react-beautiful-dnd: npm install react-beautiful-dnd
+// 解決 React 18 StrictMode 相容性問題的自定義 Droppable
+const StrictModeDroppable = ({ children, ...props }) => {
+    const [enabled, setEnabled] = useState(false);
+
+    useEffect(() => {
+        const animation = requestAnimationFrame(() => setEnabled(true));
+        return () => {
+            cancelAnimationFrame(animation);
+            setEnabled(false);
+        };
+    }, []);
+
+    if (!enabled) {
+        return null;
+    }
+
+    return <Droppable {...props}>{children}</Droppable>;
+};
 
 const CompanyManager = ({ data, setData, database, onSave }) => {
     // 狀態管理
-    const [companies, setCompanies] = useState(Object.entries(data.companies || {})
-        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-        .map(([id, company]) => ({ id, ...company }))
-    );
+    const [companies, setCompanies] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedCompany, setSelectedCompany] = useState(null);
@@ -21,11 +36,22 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
     const [error, setError] = useState('');
+    const [isDragging, setIsDragging] = useState(false);
 
     // 通知相關狀態
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+
+    // 初始化公司數據
+    useEffect(() => {
+        if (data && data.companies) {
+            const companiesArray = Object.entries(data.companies || {})
+                .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                .map(([id, company]) => ({ id, ...company }));
+            setCompanies(companiesArray);
+        }
+    }, [data]);
 
     // 顯示通知函數
     const showNotification = (message, severity = 'success') => {
@@ -42,169 +68,146 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
         setOpenSnackbar(false);
     };
 
-    // 更新全局資料但不觸發全頁重新載入
-    const updateGlobalData = useCallback((newCompanies) => {
+    // 新增拖曳開始處理
+    const onDragStart = () => {
+        setIsDragging(true);
+        // 更改游標樣式為grabbing
+        document.body.style.cursor = 'grabbing';
+    };
+
+    // 更新全局資料
+    const updateGlobalData = (updatedCompanies) => {
         if (setData) {
-            // 深拷貝當前資料
             const newData = JSON.parse(JSON.stringify(data));
 
-            // 轉換公司列表為對象格式
+            // 將公司數組轉換為對象格式
             const companiesObj = {};
-            newCompanies.forEach(company => {
-                if (company.id) {
-                    // 排除 id 屬性，因為它已經作為鍵使用
-                    const { id, ...companyData } = company;
-                    companiesObj[id] = companyData;
-                }
+            updatedCompanies.forEach(company => {
+                companiesObj[company.id] = { ...company };
+                delete companiesObj[company.id].id; // 刪除多餘的 id 字段
             });
 
-            // 更新公司數據
             newData.companies = companiesObj;
             setData(newData);
         }
-    }, [data, setData]);
+    };
 
     // 添加公司
     const addCompany = async () => {
         if (!companyName.trim()) {
-            setError('請輸入公司名稱');
+            setError('公司名稱不能為空');
             return;
         }
 
+        setError('');
         try {
-            // 建立新公司物件
+            // 準備新公司資料
+            const newCompanyRef = push(ref(database, 'companies'));
             const newCompany = {
                 name: companyName.trim(),
                 tax_id: taxId.trim(),
                 phone: phone.trim(),
                 address: address.trim(),
                 vehicles: {},
-                sort_index: companies.length
+                sort_index: companies.length // 新增時設定為列表最後
             };
 
             // 更新 Firebase
-            const newCompanyRef = push(ref(database, 'companies'));
             await set(newCompanyRef, newCompany);
 
             // 更新本地狀態
-            const newCompanyWithId = { id: newCompanyRef.key, ...newCompany };
-            const updatedCompanies = [...companies, newCompanyWithId];
+            const updatedCompany = { id: newCompanyRef.key, ...newCompany };
+            const updatedCompanies = [...companies, updatedCompany];
             setCompanies(updatedCompanies);
 
-            // 更新全局狀態，避免全頁重新載入
+            // 更新全局資料
             updateGlobalData(updatedCompanies);
 
-            // 清除表單
-            setCompanyName('');
-            setTaxId('');
-            setPhone('');
-            setAddress('');
+            // 重置表單
+            resetForm();
             setShowAddModal(false);
-            setError('');
 
             // 顯示成功通知
-            showNotification('新增公司成功！', 'success');
-
-            // 通知父元件，但不觸發重新載入
-            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
+            showNotification('公司已成功添加！', 'success');
         } catch (error) {
             console.error('添加公司時發生錯誤:', error);
             setError(`添加公司時發生錯誤: ${error.message}`);
-            showNotification('添加公司失敗！', 'error');
+            showNotification(`添加公司時發生錯誤: ${error.message}`, 'error');
         }
     };
 
-    // 編輯公司
-    const editCompany = async () => {
-        if (!companyName.trim()) {
-            setError('請輸入公司名稱');
+    // 更新公司
+    const updateCompany = async () => {
+        if (!companyName.trim() || !selectedCompany) {
+            setError('公司名稱不能為空');
             return;
         }
 
+        setError('');
         try {
-            // 更新選中的公司
+            // 準備更新資料
             const updatedCompany = {
-                ...selectedCompany,
                 name: companyName.trim(),
                 tax_id: taxId.trim(),
                 phone: phone.trim(),
-                address: address.trim()
+                address: address.trim(),
+                // 保留現有車輛與排序索引
+                vehicles: selectedCompany.vehicles || {},
+                sort_index: selectedCompany.sort_index
             };
 
             // 更新 Firebase
-            await set(ref(database, `companies/${selectedCompany.id}`), {
-                name: updatedCompany.name,
-                tax_id: updatedCompany.tax_id,
-                phone: updatedCompany.phone,
-                address: updatedCompany.address,
-                vehicles: updatedCompany.vehicles || {},
-                sort_index: updatedCompany.sort_index
-            });
+            await set(ref(database, `companies/${selectedCompany.id}`), updatedCompany);
 
             // 更新本地狀態
-            const newCompanies = companies.map(company =>
-                company.id === selectedCompany.id ? updatedCompany : company
+            const updatedCompanies = companies.map(company =>
+                company.id === selectedCompany.id
+                    ? { ...company, ...updatedCompany }
+                    : company
             );
-            setCompanies(newCompanies);
+            setCompanies(updatedCompanies);
 
-            // 更新全局狀態，避免全頁重新載入
-            updateGlobalData(newCompanies);
+            // 更新全局資料
+            updateGlobalData(updatedCompanies);
 
-            // 清除表單
-            setCompanyName('');
-            setTaxId('');
-            setPhone('');
-            setAddress('');
-            setSelectedCompany(null);
+            // 重置表單
+            resetForm();
             setShowEditModal(false);
-            setError('');
 
             // 顯示成功通知
-            showNotification('更新公司成功！', 'success');
-
-            // 通知父元件，但不觸發重新載入
-            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
+            showNotification('公司資料已成功更新！', 'success');
         } catch (error) {
-            console.error('編輯公司時發生錯誤:', error);
-            setError(`編輯公司時發生錯誤: ${error.message}`);
-            showNotification('編輯公司失敗！', 'error');
+            console.error('更新公司時發生錯誤:', error);
+            setError(`更新公司時發生錯誤: ${error.message}`);
+            showNotification(`更新公司時發生錯誤: ${error.message}`, 'error');
         }
     };
 
     // 刪除公司
     const deleteCompany = async (company) => {
-        if (!window.confirm(`確定要刪除 "${company.name}" 嗎？這會一併刪除該公司的所有車輛和記錄！`)) {
-            return;
-        }
+        if (!window.confirm(`確定要刪除公司 "${company.name}" 嗎？這將會同時刪除所有相關車輛與紀錄！`)) return;
 
         try {
-            // 從 Firebase 刪除公司
+            // 從 Firebase 刪除
             await remove(ref(database, `companies/${company.id}`));
 
             // 更新本地狀態
-            const newCompanies = companies.filter(c => c.id !== company.id);
+            const updatedCompanies = companies.filter(c => c.id !== company.id);
+            setCompanies(updatedCompanies);
 
-            // 更新排序索引
-            const reorderedCompanies = newCompanies.map((company, index) => ({
-                ...company,
-                sort_index: index
-            }));
+            // 更新全局資料
+            updateGlobalData(updatedCompanies);
 
-            // 更新排序索引到 Firebase
-            reorderedCompanies.forEach(async (company) => {
-                await set(ref(database, `companies/${company.id}/sort_index`), company.sort_index);
-            });
+            // 如果刪除的是當前選中的公司，則清空選擇
+            if (selectedCompany && selectedCompany.id === company.id) {
+                setSelectedCompany(null);
+            }
 
-            setCompanies(reorderedCompanies);
-
-            // 更新全局狀態，避免全頁重新載入
-            updateGlobalData(reorderedCompanies);
+            // 通知父元件，但不要觸發重新載入整頁
+            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
 
             // 顯示成功通知
-            showNotification(`成功刪除「${company.name}」公司`, 'success');
-
-            // 通知父元件，但不觸發重新載入
-            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
+            showNotification('公司已成功刪除！', 'success');
         } catch (error) {
             console.error('刪除公司時發生錯誤:', error);
             showNotification(`刪除公司時發生錯誤: ${error.message}`, 'error');
@@ -213,9 +216,22 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
 
     // 處理拖放排序結束事件
     const onDragEnd = async (result) => {
-        if (!result.destination) return;
+        // 恢復正常鼠標樣式
+        document.body.style.cursor = 'default';
+        setIsDragging(false);
+
+        // 如果沒有目標或拖曳到相同位置，則不做任何事
+        if (!result.destination || result.source.index === result.destination.index) {
+            return;
+        }
+
+        // 獲取當前的公司數組副本
         const items = Array.from(companies);
+
+        // 從源位置移除被拖拽的項目
         const [reorderedItem] = items.splice(result.source.index, 1);
+
+        // 將項目插入到目標位置
         items.splice(result.destination.index, 0, reorderedItem);
 
         // 更新排序索引
@@ -224,19 +240,26 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             sort_index: index
         }));
 
-        // 更新本地狀態
+        // 先更新本地狀態，讓UI即時更新
         setCompanies(reorderedCompanies);
 
-        // 更新全局狀態，避免全頁重新載入
-        updateGlobalData(reorderedCompanies);
+        try {
+            // 更新排序索引到 Firebase
+            for (const company of reorderedCompanies) {
+                await set(ref(database, `companies/${company.id}/sort_index`), company.sort_index);
+            }
 
-        // 更新排序索引到 Firebase
-        reorderedCompanies.forEach(async (company) => {
-            await set(ref(database, `companies/${company.id}/sort_index`), company.sort_index);
-        });
+            // 更新全局狀態
+            updateGlobalData(reorderedCompanies);
 
-        // 通知父元件，但不觸發重新載入
-        if (onSave) onSave({ reload: false, source: 'CompanyManager' });
+            // 通知父元件，但不觸發重新載入
+            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
+
+            showNotification('排序已更新', 'success');
+        } catch (error) {
+            console.error('更新排序時發生錯誤:', error);
+            showNotification(`更新排序時發生錯誤: ${error.message}`, 'error');
+        }
     };
 
     // 清除表單
@@ -247,6 +270,23 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
         setAddress('');
         setError('');
     };
+
+    // 準備編輯公司
+    const prepareEditCompany = (company) => {
+        setSelectedCompany(company);
+        setCompanyName(company.name || '');
+        setTaxId(company.tax_id || '');
+        setPhone(company.phone || '');
+        setAddress(company.address || '');
+        setShowEditModal(true);
+    };
+
+    // 清理事件監聽器
+    useEffect(() => {
+        return () => {
+            document.body.style.cursor = 'default';
+        };
+    }, []);
 
     return (
         <div className="company-manager">
@@ -281,42 +321,58 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                 </Col>
             </Row>
 
-            <DragDropContext onDragEnd={onDragEnd}>
-                <Droppable droppableId="companies">
+            {isDragging && (
+                <div className="alert alert-info mb-2">
+                    <small>拖曳進行中...放開滑鼠完成排序</small>
+                </div>
+            )}
+
+            <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd} strict={true}>
+                <StrictModeDroppable droppableId="company-list">
                     {(provided) => (
                         <div
                             {...provided.droppableProps}
                             ref={provided.innerRef}
+                            className="drag-container mb-3"
                         >
                             <ListGroup className="mb-3">
                                 {companies.map((company, index) => (
                                     <Draggable
-                                        key={company.id}
-                                        draggableId={company.id}
+                                        key={`company-${company.id}`}
+                                        draggableId={`company-${company.id}`}
                                         index={index}
                                     >
                                         {(provided, snapshot) => (
                                             <ListGroup.Item
                                                 ref={provided.innerRef}
                                                 {...provided.draggableProps}
-                                                {...provided.dragHandleProps}
-                                                className={`d-flex justify-content-between align-items-center sortable-item ${snapshot.isDragging ? 'dragging' : ''}`}
+                                                className={`d-flex justify-content-between align-items-center company-item ${snapshot.isDragging ? 'dragging' : ''}`}
                                             >
-                                                <span>{company.name}</span>
+                                                <div className="d-flex align-items-center">
+                                                    <div
+                                                        {...provided.dragHandleProps}
+                                                        className="drag-handle me-2"
+                                                        style={{
+                                                            cursor: snapshot.isDragging ? 'grabbing' : 'grab',
+                                                            fontSize: '18px',
+                                                            backgroundColor: '#f0f0f0',
+                                                            padding: '6px',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                    >
+                                                        <FaBars />
+                                                    </div>
+                                                    <span>{company.name}</span>
+                                                </div>
                                                 <div>
                                                     <Button
                                                         variant="outline-primary"
                                                         size="sm"
-                                                        className="me-2"
-                                                        onClick={() => {
-                                                            setSelectedCompany(company);
-                                                            setCompanyName(company.name);
-                                                            setTaxId(company.tax_id || '');
-                                                            setPhone(company.phone || '');
-                                                            setAddress(company.address || '');
-                                                            setError('');
-                                                            setShowEditModal(true);
-                                                        }}
+                                                        className="me-1"
+                                                        onClick={() => prepareEditCompany(company)}
                                                     >
                                                         編輯
                                                     </Button>
@@ -336,7 +392,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                             </ListGroup>
                         </div>
                     )}
-                </Droppable>
+                </StrictModeDroppable>
             </DragDropContext>
 
             {companies.length === 0 && (
@@ -351,56 +407,57 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                     <Modal.Title>新增公司</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <Form.Group className="mb-3">
-                        <Form.Label>公司名稱:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={companyName}
-                            onChange={(e) => setCompanyName(e.target.value)}
-                            placeholder="請輸入公司名稱"
-                            isInvalid={!!error}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                            {error}
-                        </Form.Control.Feedback>
-                    </Form.Group>
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>公司名稱 *</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入公司名稱"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                required
+                            />
+                        </Form.Group>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>統一編號:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={taxId}
-                            onChange={(e) => setTaxId(e.target.value)}
-                            placeholder="請輸入統一編號"
-                        />
-                    </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>統一編號</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入統一編號"
+                                value={taxId}
+                                onChange={(e) => setTaxId(e.target.value)}
+                            />
+                        </Form.Group>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>電話:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder="請輸入電話"
-                        />
-                    </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>電話</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入聯絡電話"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                            />
+                        </Form.Group>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>地址:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={address}
-                            onChange={(e) => setAddress(e.target.value)}
-                            placeholder="請輸入地址"
-                        />
-                    </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>地址</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入公司地址"
+                                value={address}
+                                onChange={(e) => setAddress(e.target.value)}
+                            />
+                        </Form.Group>
+
+                        {error && <div className="text-danger mb-3">{error}</div>}
+                    </Form>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowAddModal(false)}>
                         取消
                     </Button>
                     <Button variant="primary" onClick={addCompany}>
-                        儲存
+                        新增
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -408,58 +465,60 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             {/* 編輯公司對話框 */}
             <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>公司資料</Modal.Title>
+                    <Modal.Title>編輯公司</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <Form.Group className="mb-3">
-                        <Form.Label>公司名稱:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={companyName}
-                            onChange={(e) => setCompanyName(e.target.value)}
-                            isInvalid={!!error}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                            {error}
-                        </Form.Control.Feedback>
-                    </Form.Group>
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>公司名稱 *</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入公司名稱"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                required
+                            />
+                        </Form.Group>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>統一編號:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={taxId}
-                            onChange={(e) => setTaxId(e.target.value)}
-                            placeholder="請輸入統一編號"
-                        />
-                    </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>統一編號</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入統一編號"
+                                value={taxId}
+                                onChange={(e) => setTaxId(e.target.value)}
+                            />
+                        </Form.Group>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>電話:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder="請輸入電話"
-                        />
-                    </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>電話</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入聯絡電話"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                            />
+                        </Form.Group>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>地址:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={address}
-                            onChange={(e) => setAddress(e.target.value)}
-                            placeholder="請輸入地址"
-                        />
-                    </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>地址</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="輸入公司地址"
+                                value={address}
+                                onChange={(e) => setAddress(e.target.value)}
+                            />
+                        </Form.Group>
+
+                        {error && <div className="text-danger mb-3">{error}</div>}
+                    </Form>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowEditModal(false)}>
                         取消
                     </Button>
-                    <Button variant="primary" onClick={editCompany}>
-                        儲存
+                    <Button variant="primary" onClick={updateCompany}>
+                        更新
                     </Button>
                 </Modal.Footer>
             </Modal>

@@ -2,18 +2,33 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Form, Row, Col, Modal, ListGroup } from 'react-bootstrap';
 import { ref, set, push, remove, get } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaCog } from 'react-icons/fa';
+import { FaGripVertical, FaCog, FaBars } from 'react-icons/fa';
 // MUI 組件
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
+// 解決 React 18 StrictMode 相容性問題的自定義 Droppable
+const StrictModeDroppable = ({ children, ...props }) => {
+    const [enabled, setEnabled] = useState(false);
+
+    useEffect(() => {
+        const animation = requestAnimationFrame(() => setEnabled(true));
+        return () => {
+            cancelAnimationFrame(animation);
+            setEnabled(false);
+        };
+    }, []);
+
+    if (!enabled) {
+        return null;
+    }
+
+    return <Droppable {...props}>{children}</Droppable>;
+};
+
 const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
     // 狀態管理
-    const [vehicles, setVehicles] = useState(
-        Object.entries(data.companies[companyId]?.vehicles || {})
-            .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-            .map(([id, vehicle]) => ({ id, ...vehicle }))
-    );
+    const [vehicles, setVehicles] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showTypeManagerModal, setShowTypeManagerModal] = useState(false);
@@ -22,6 +37,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
     const [showTypeInput, setShowTypeInput] = useState(false);
     const [customType, setCustomType] = useState('');
     const [newTypeInput, setNewTypeInput] = useState('');
+    const [isDragging, setIsDragging] = useState(false);
 
     // 通知相關狀態
     const [openSnackbar, setOpenSnackbar] = useState(false);
@@ -34,6 +50,38 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
     const [remarks, setRemarks] = useState('');
     const [error, setError] = useState('');
     const [typeError, setTypeError] = useState('');
+
+    // 從data初始化vehicles
+    useEffect(() => {
+        if (data && data.companies && data.companies[companyId] && data.companies[companyId].vehicles) {
+            const vehiclesArray = Object.entries(data.companies[companyId].vehicles || {})
+                .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                .map(([id, vehicle]) => ({ id, ...vehicle }));
+            setVehicles(vehiclesArray);
+        } else {
+            setVehicles([]);
+        }
+    }, [data, companyId]);
+
+    // 新增拖曳開始處理
+    const onDragStart = () => {
+        setIsDragging(true);
+        // 更改游標樣式為grabbing
+        document.body.style.cursor = 'grabbing';
+    };
+
+    // 載入車輛類型
+    const loadVehicleTypes = useCallback(async () => {
+        try {
+            const typesRef = ref(database, 'vehicle_types');
+            const snapshot = await get(typesRef);
+            if (snapshot.exists()) {
+                setVehicleTypes(snapshot.val() || ['水泥攪拌車', '連結車']);
+            }
+        } catch (error) {
+            console.error('載入車輛類型錯誤:', error);
+        }
+    }, [database]);
 
     // 顯示通知函數
     const showNotification = (message, severity = 'success') => {
@@ -50,351 +98,157 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
         setOpenSnackbar(false);
     };
 
-    // 更新全局資料但不觸發全頁重新載入
-    const updateGlobalData = useCallback((newVehicleTypes) => {
-        // 如果在 Home 組件有 setData 函數，使用它來更新本地狀態
+    // 初始化
+    useEffect(() => {
+        loadVehicleTypes();
+
+        // 清理事件監聽器
+        return () => {
+            document.body.style.cursor = 'default';
+        };
+    }, [loadVehicleTypes]);
+
+    // 更新全局資料
+    const updateGlobalData = (updatedVehicles) => {
         if (setData) {
-            // 深拷貝當前資料
             const newData = JSON.parse(JSON.stringify(data));
 
-            // 如果父組件支持相關字段，則更新
-            if (newData.vehicleTypes !== undefined) {
-                newData.vehicleTypes = newVehicleTypes;
-                setData(newData);
-            }
-        }
-    }, [data, setData]);
-
-    // 從資料庫載入已存在的車輛類型
-    useEffect(() => {
-        const loadVehicleTypes = async () => {
-            try {
-                // 先設置默認類型
-                const defaultTypes = ['水泥攪拌車', '連結車'];
-                const existingTypes = new Set(defaultTypes);
-
-                // 從 Firebase 載入車輛類型
-                const vehicleTypesRef = ref(database, 'vehicle_types');
-                const snapshot = await get(vehicleTypesRef);
-
-                if (snapshot.exists() && snapshot.val()) {
-                    const storedTypes = snapshot.val();
-                    // 確保 storedTypes 是陣列
-                    if (Array.isArray(storedTypes)) {
-                        storedTypes.forEach(vType => {
-                            if (vType && !existingTypes.has(vType)) {
-                                existingTypes.add(vType);
-                            }
-                        });
-                    }
-                } else {
-                    // 如果資料庫中沒有車輛類型，則初始化默認值
-                    await set(vehicleTypesRef, defaultTypes);
-                }
-
-                // 再遍歷所有公司的車輛收集類型
-                Object.values(data.companies || {}).forEach(company => {
-                    Object.values(company.vehicles || {}).forEach(vehicle => {
-                        if (vehicle.type && !existingTypes.has(vehicle.type)) {
-                            existingTypes.add(vehicle.type);
-                        }
-                    });
-                });
-
-                // 保存所有類型回 Firebase (包括從車輛收集到的類型)
-                const allTypesArray = Array.from(existingTypes);
-                await set(vehicleTypesRef, allTypesArray);
-
-                // 更新本地狀態
-                setVehicleTypes(allTypesArray);
-                console.log('已載入車輛類型:', allTypesArray);
-            } catch (error) {
-                console.error('載入車輛類型時發生錯誤:', error);
-            }
-        };
-
-        loadVehicleTypes();
-    }, [data.companies, database]);
-
-    // 保存車輛類型到 Firebase
-    const saveVehicleTypes = async (types) => {
-        try {
-            console.log('保存車輛類型到 Firebase:', types);
-            await set(ref(database, 'vehicle_types'), types);
-            // 更新全局狀態，避免全頁重新載入
-            updateGlobalData(types);
-            return true;
-        } catch (error) {
-            console.error('保存車輛類型時發生錯誤:', error);
-            return false;
-        }
-    };
-
-    // 添加車輛類型
-    const addVehicleType = async () => {
-        if (!newTypeInput.trim()) {
-            setTypeError('請輸入車輛種類名稱');
-            return;
-        }
-
-        if (vehicleTypes.includes(newTypeInput.trim())) {
-            setTypeError('此車輛種類已存在');
-            return;
-        }
-
-        const typeName = newTypeInput.trim();
-        const newTypes = [...vehicleTypes, typeName];
-        setVehicleTypes(newTypes);
-        const saveSuccess = await saveVehicleTypes(newTypes);
-
-        if (saveSuccess) {
-            setNewTypeInput('');
-            setTypeError('');
-            showNotification(`已成功新增車輛種類「${typeName}」`, 'success');
-        } else {
-            setTypeError('儲存車輛種類失敗，請稍後再試');
-            showNotification('儲存車輛種類失敗，請稍後再試', 'error');
-        }
-    };
-
-    // 刪除車輛類型
-    const deleteVehicleType = async (typeToDelete) => {
-        // 防止刪除預設類型
-        if (typeToDelete === '水泥攪拌車' || typeToDelete === '連結車') {
-            showNotification('無法刪除預設車輛種類', 'error');
-            return;
-        }
-
-        // 檢查是否有車輛正在使用此類型
-        let isInUse = false;
-        Object.values(data.companies || {}).forEach(company => {
-            Object.values(company.vehicles || {}).forEach(vehicle => {
-                if (vehicle.type === typeToDelete) {
-                    isInUse = true;
-                }
+            // 將車輛數組轉換為對象格式
+            const vehiclesObj = {};
+            updatedVehicles.forEach(vehicle => {
+                vehiclesObj[vehicle.id] = { ...vehicle };
+                delete vehiclesObj[vehicle.id].id; // 刪除多餘的 id 字段
             });
-        });
 
-        if (isInUse) {
-            if (!window.confirm(`有車輛正在使用「${typeToDelete}」種類，確定要刪除嗎？`)) {
-                return;
+            if (!newData.companies[companyId]) {
+                newData.companies[companyId] = { vehicles: {} };
             }
-        } else {
-            if (!window.confirm(`確定要刪除「${typeToDelete}」車輛種類嗎？`)) {
-                return;
-            }
-        }
-
-        const newTypes = vehicleTypes.filter(t => t !== typeToDelete);
-        setVehicleTypes(newTypes);
-        const saveSuccess = await saveVehicleTypes(newTypes);
-
-        if (saveSuccess) {
-            showNotification(`已成功刪除車輛種類「${typeToDelete}」`, 'success');
-        } else {
-            showNotification('刪除車輛種類失敗，請稍後再試', 'error');
-            // 恢復原有種類列表
-            setVehicleTypes([...vehicleTypes]);
+            newData.companies[companyId].vehicles = vehiclesObj;
+            setData(newData);
         }
     };
 
     // 添加車輛
     const addVehicle = async () => {
         if (!plate.trim()) {
-            setError('請輸入車牌號碼');
+            setError('車牌號碼不能為空');
             return;
         }
 
-        // 準備車輛類型
-        let vehicleType = type;
-        if (showTypeInput && customType.trim()) {
-            vehicleType = customType.trim();
-
-            // 將新類型添加到選項中
-            if (!vehicleTypes.includes(vehicleType)) {
-                const newTypes = [...vehicleTypes, vehicleType];
-                setVehicleTypes(newTypes);
-                await saveVehicleTypes(newTypes);
-            }
-        } else if (!vehicleType) {
-            setError('請選擇或輸入車輛種類');
-            return;
-        }
-
+        setError('');
         try {
-            // 建立新車輛物件
+            // 檢查是否已存在相同車牌
+            const existingVehicle = vehicles.find(v => v.plate === plate.trim());
+            if (existingVehicle) {
+                setError('該車牌號碼已存在');
+                return;
+            }
+
+            // 創建車輛數據
+            const newVehicleRef = push(ref(database, `companies/${companyId}/vehicles`));
             const newVehicle = {
                 plate: plate.trim(),
-                type: vehicleType,
+                type: type,
                 remarks: remarks.trim(),
                 records: [],
-                sort_index: vehicles.length
+                sort_index: vehicles.length // 新車輛排序在最後
             };
 
             // 更新 Firebase
-            const newVehicleRef = push(ref(database, `companies/${companyId}/vehicles`));
             await set(newVehicleRef, newVehicle);
 
             // 更新本地狀態
-            const newVehicleWithId = { id: newVehicleRef.key, ...newVehicle };
-            const updatedVehicles = [...vehicles, newVehicleWithId];
+            const updatedVehicle = { id: newVehicleRef.key, ...newVehicle };
+            const updatedVehicles = [...vehicles, updatedVehicle];
             setVehicles(updatedVehicles);
 
-            // 更新全局狀態，避免全頁重新載入
-            if (setData) {
-                const newData = JSON.parse(JSON.stringify(data));
-                if (!newData.companies[companyId].vehicles) {
-                    newData.companies[companyId].vehicles = {};
-                }
-                newData.companies[companyId].vehicles[newVehicleRef.key] = newVehicle;
-                setData(newData);
-            }
+            // 更新全局資料
+            updateGlobalData(updatedVehicles);
 
-            // 清除表單
-            setPlate('');
-            setType('水泥攪拌車');
-            setCustomType('');
-            setRemarks('');
-            setShowTypeInput(false);
+            // 重置表單
+            resetForm();
             setShowAddModal(false);
-            setError('');
 
-            showNotification('新增車輛成功！', 'success');
-
-            // 通知父元件，但不觸發全頁重新載入
-            if (onSave) onSave({ reload: false, source: 'VehicleManager' });
+            // 顯示成功通知
+            showNotification('車輛已成功添加！', 'success');
         } catch (error) {
             console.error('添加車輛時發生錯誤:', error);
             setError(`添加車輛時發生錯誤: ${error.message}`);
-            showNotification('添加車輛失敗！', 'error');
+            showNotification(`添加車輛時發生錯誤: ${error.message}`, 'error');
         }
     };
 
-    // 編輯車輛
-    const editVehicle = async () => {
-        if (!plate.trim()) {
-            setError('請輸入車牌號碼');
+    // 更新車輛
+    const updateVehicle = async () => {
+        if (!plate.trim() || !selectedVehicle) {
+            setError('車牌號碼不能為空');
             return;
         }
 
-        // 準備車輛類型
-        let vehicleType = type;
-        if (showTypeInput && customType.trim()) {
-            vehicleType = customType.trim();
-
-            // 將新類型添加到選項中
-            if (!vehicleTypes.includes(vehicleType)) {
-                const newTypes = [...vehicleTypes, vehicleType];
-                setVehicleTypes(newTypes);
-                saveVehicleTypes(newTypes);
-            }
-        } else if (!vehicleType) {
-            setError('請選擇或輸入車輛種類');
-            return;
-        }
-
+        setError('');
         try {
-            // 更新選中的車輛
+            // 檢查是否已存在相同車牌（不包括當前編輯的車輛）
+            const existingVehicle = vehicles.find(v => v.plate === plate.trim() && v.id !== selectedVehicle.id);
+            if (existingVehicle) {
+                setError('該車牌號碼已存在');
+                return;
+            }
+
+            // 準備更新資料
             const updatedVehicle = {
-                ...selectedVehicle,
                 plate: plate.trim(),
-                type: vehicleType,
-                remarks: remarks.trim()
+                type: type,
+                remarks: remarks.trim(),
+                // 保留原有記錄與排序索引
+                records: selectedVehicle.records || [],
+                sort_index: selectedVehicle.sort_index
             };
 
             // 更新 Firebase
-            await set(ref(database, `companies/${companyId}/vehicles/${selectedVehicle.id}`), {
-                plate: updatedVehicle.plate,
-                type: updatedVehicle.type,
-                remarks: updatedVehicle.remarks,
-                records: updatedVehicle.records || [],
-                sort_index: updatedVehicle.sort_index
-            });
+            await set(ref(database, `companies/${companyId}/vehicles/${selectedVehicle.id}`), updatedVehicle);
 
             // 更新本地狀態
-            const newVehicles = vehicles.map(vehicle =>
-                vehicle.id === selectedVehicle.id ? updatedVehicle : vehicle
+            const updatedVehicles = vehicles.map(vehicle =>
+                vehicle.id === selectedVehicle.id
+                    ? { ...vehicle, ...updatedVehicle }
+                    : vehicle
             );
-            setVehicles(newVehicles);
+            setVehicles(updatedVehicles);
 
-            // 更新全局狀態，避免全頁重新載入
-            if (setData) {
-                const newData = JSON.parse(JSON.stringify(data));
-                if (!newData.companies[companyId].vehicles) {
-                    newData.companies[companyId].vehicles = {};
-                }
-                newData.companies[companyId].vehicles[selectedVehicle.id] = {
-                    plate: updatedVehicle.plate,
-                    type: updatedVehicle.type,
-                    remarks: updatedVehicle.remarks,
-                    records: updatedVehicle.records || [],
-                    sort_index: updatedVehicle.sort_index
-                };
-                setData(newData);
-            }
+            // 更新全局資料
+            updateGlobalData(updatedVehicles);
 
-            // 清除表單
-            setPlate('');
-            setType('水泥攪拌車');
-            setCustomType('');
-            setRemarks('');
-            setShowTypeInput(false);
-            setSelectedVehicle(null);
+            // 重置表單
+            resetForm();
             setShowEditModal(false);
-            setError('');
 
             // 顯示成功通知
-            showNotification('編輯車輛成功！', 'success');
-
-            // 通知父元件，但不觸發重新載入
-            if (onSave) onSave({ reload: false, source: 'VehicleManager' });
+            showNotification('車輛資料已成功更新！', 'success');
         } catch (error) {
-            console.error('編輯車輛時發生錯誤:', error);
-            setError(`編輯車輛時發生錯誤: ${error.message}`);
-            showNotification('編輯車輛失敗！', 'error');
+            console.error('更新車輛時發生錯誤:', error);
+            setError(`更新車輛時發生錯誤: ${error.message}`);
+            showNotification(`更新車輛時發生錯誤: ${error.message}`, 'error');
         }
     };
 
     // 刪除車輛
     const deleteVehicle = async (vehicle) => {
-        if (!window.confirm(`確定要刪除 "${vehicle.plate}" 嗎？這會一併刪除該車輛的所有記錄！`)) {
-            return;
-        }
+        if (!window.confirm(`確定要刪除車牌為 "${vehicle.plate}" 的車輛嗎？這將會同時刪除所有相關紀錄！`)) return;
 
         try {
-            // 從 Firebase 刪除車輛
+            // 從 Firebase 刪除
             await remove(ref(database, `companies/${companyId}/vehicles/${vehicle.id}`));
 
             // 更新本地狀態
-            const newVehicles = vehicles.filter(v => v.id !== vehicle.id);
+            const updatedVehicles = vehicles.filter(v => v.id !== vehicle.id);
+            setVehicles(updatedVehicles);
 
-            // 更新排序索引
-            const reorderedVehicles = newVehicles.map((vehicle, index) => ({
-                ...vehicle,
-                sort_index: index
-            }));
+            // 更新全局資料
+            updateGlobalData(updatedVehicles);
 
-            // 更新排序索引到 Firebase
-            reorderedVehicles.forEach(async (vehicle) => {
-                await set(ref(database, `companies/${companyId}/vehicles/${vehicle.id}/sort_index`), vehicle.sort_index);
-            });
-
-            setVehicles(reorderedVehicles);
-
-            // 更新全局狀態，避免全頁重新載入
-            if (setData) {
-                const newData = JSON.parse(JSON.stringify(data));
-                // 刪除車輛
-                delete newData.companies[companyId].vehicles[vehicle.id];
-
-                // 更新其他車輛的排序索引
-                reorderedVehicles.forEach(v => {
-                    if (newData.companies[companyId].vehicles[v.id]) {
-                        newData.companies[companyId].vehicles[v.id].sort_index = v.sort_index;
-                    }
-                });
-
-                setData(newData);
+            // 如果刪除的是當前選中的車輛，則清空選擇
+            if (selectedVehicle && selectedVehicle.id === vehicle.id) {
+                setSelectedVehicle(null);
             }
 
             // 通知父元件，但不觸發全頁重新載入
@@ -410,9 +264,20 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
 
     // 處理拖放排序結束事件
     const onDragEnd = async (result) => {
-        if (!result.destination) return;
+        // 恢復正常鼠標樣式
+        document.body.style.cursor = 'default';
+        setIsDragging(false);
+
+        // 如果沒有目標或相同位置，直接返回
+        if (!result.destination || result.source.index === result.destination.index) return;
+
+        // 獲取當前的車輛數組副本
         const items = Array.from(vehicles);
+
+        // 從源位置移除被拖拽的項目
         const [reorderedItem] = items.splice(result.source.index, 1);
+
+        // 將項目插入到目標位置
         items.splice(result.destination.index, 0, reorderedItem);
 
         // 更新排序索引
@@ -424,37 +289,116 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
         // 更新本地狀態
         setVehicles(reorderedVehicles);
 
-        // 更新排序索引到 Firebase
-        reorderedVehicles.forEach(async (vehicle) => {
-            await set(ref(database, `companies/${companyId}/vehicles/${vehicle.id}/sort_index`), vehicle.sort_index);
-        });
+        try {
+            // 更新排序索引到 Firebase
+            for (const vehicle of reorderedVehicles) {
+                await set(ref(database, `companies/${companyId}/vehicles/${vehicle.id}/sort_index`), vehicle.sort_index);
+            }
 
-        // 更新全局狀態，避免全頁重新載入
-        if (setData) {
-            const newData = JSON.parse(JSON.stringify(data));
+            // 更新全局狀態
+            updateGlobalData(reorderedVehicles);
 
-            // 更新車輛排序索引
-            reorderedVehicles.forEach(vehicle => {
-                if (newData.companies[companyId].vehicles[vehicle.id]) {
-                    newData.companies[companyId].vehicles[vehicle.id].sort_index = vehicle.sort_index;
-                }
-            });
+            // 通知父元件，但不觸發重新載入
+            if (onSave) onSave({ reload: false, source: 'VehicleManager' });
 
-            setData(newData);
+            showNotification('排序已更新', 'success');
+        } catch (error) {
+            console.error('更新排序時發生錯誤:', error);
+            showNotification(`更新排序時發生錯誤: ${error.message}`, 'error');
         }
-
-        // 通知父元件，但不觸發全頁重新載入
-        if (onSave) onSave({ reload: false, source: 'VehicleManager' });
     };
 
-    // 重置表單
+    // 添加車輛類型
+    const addVehicleType = async () => {
+        if (!newTypeInput.trim()) {
+            setTypeError('類型不能為空');
+            return;
+        }
+
+        setTypeError('');
+        try {
+            // 檢查是否已有相同類型
+            if (vehicleTypes.includes(newTypeInput.trim())) {
+                setTypeError('該類型已存在');
+                return;
+            }
+
+            // 添加新類型
+            const updatedTypes = [...vehicleTypes, newTypeInput.trim()];
+
+            // 更新 Firebase
+            await set(ref(database, 'vehicle_types'), updatedTypes);
+
+            // 更新本地狀態
+            setVehicleTypes(updatedTypes);
+            setNewTypeInput('');
+
+            // 顯示成功通知
+            showNotification('車輛類型已成功添加！', 'success');
+        } catch (error) {
+            console.error('添加車輛類型時發生錯誤:', error);
+            setTypeError(`添加車輛類型時發生錯誤: ${error.message}`);
+            showNotification(`添加車輛類型時發生錯誤: ${error.message}`, 'error');
+        }
+    };
+
+    // 刪除車輛類型
+    const deleteVehicleType = async (typeToDelete) => {
+        if (!window.confirm(`確定要刪除類型 "${typeToDelete}" 嗎？`)) return;
+
+        try {
+            // 過濾掉要刪除的類型
+            const updatedTypes = vehicleTypes.filter(t => t !== typeToDelete);
+
+            // 更新 Firebase
+            await set(ref(database, 'vehicle_types'), updatedTypes);
+
+            // 更新本地狀態
+            setVehicleTypes(updatedTypes);
+
+            // 顯示成功通知
+            showNotification('車輛類型已成功刪除！', 'success');
+        } catch (error) {
+            console.error('刪除車輛類型時發生錯誤:', error);
+            showNotification(`刪除車輛類型時發生錯誤: ${error.message}`, 'error');
+        }
+    };
+
+    // 清除表單
     const resetForm = () => {
         setPlate('');
         setType('水泥攪拌車');
-        setCustomType('');
         setRemarks('');
-        setShowTypeInput(false);
         setError('');
+        setCustomType('');
+        setShowTypeInput(false);
+    };
+
+    // 準備編輯車輛
+    const prepareEditVehicle = (vehicle) => {
+        setSelectedVehicle(vehicle);
+        setPlate(vehicle.plate || '');
+        setType(vehicle.type || '水泥攪拌車');
+        setRemarks(vehicle.remarks || '');
+        setShowEditModal(true);
+    };
+
+    // 清理事件監聽器
+    useEffect(() => {
+        return () => {
+            document.body.style.cursor = 'default';
+        };
+    }, []);
+
+    // 渲染車輛類型選項
+    const renderVehicleTypeOptions = () => {
+        if (!vehicleTypes) return null;
+
+        return vehicleTypes.map((type, index) => (
+            <option key={index} value={type}>
+                {type}
+            </option>
+        ));
     };
 
     return (
@@ -477,79 +421,81 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             </Snackbar>
 
             <Row className="mb-3">
-                <Col xs={8}>
+                <Col>
                     <Button
                         variant="primary"
                         onClick={() => {
                             resetForm();
                             setShowAddModal(true);
                         }}
+                        className="me-2"
                     >
                         新增車輛
                     </Button>
-                </Col>
-                <Col xs={4} className="text-end">
                     <Button
                         variant="outline-secondary"
-                        onClick={() => {
-                            setNewTypeInput('');
-                            setTypeError('');
-                            setShowTypeManagerModal(true);
-                        }}
+                        onClick={() => setShowTypeManagerModal(true)}
                     >
-                        <FaCog className="me-1" /> 管理車輛種類
+                        <FaCog className="me-1" /> 管理車輛類型
                     </Button>
                 </Col>
             </Row>
 
-            <DragDropContext onDragEnd={onDragEnd}>
-                <Droppable droppableId="vehicles">
+            {isDragging && (
+                <div className="alert alert-info mb-2">
+                    <small>拖曳進行中...放開滑鼠完成排序</small>
+                </div>
+            )}
+
+            <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
+                <StrictModeDroppable droppableId="vehicle-list">
                     {(provided) => (
                         <div
                             {...provided.droppableProps}
                             ref={provided.innerRef}
+                            className="drag-container mb-3"
                         >
                             <ListGroup className="mb-3">
                                 {vehicles.map((vehicle, index) => (
                                     <Draggable
-                                        key={vehicle.id}
-                                        draggableId={vehicle.id}
+                                        key={`vehicle-${vehicle.id}`}
+                                        draggableId={`vehicle-${vehicle.id}`}
                                         index={index}
                                     >
                                         {(provided, snapshot) => (
                                             <ListGroup.Item
                                                 ref={provided.innerRef}
                                                 {...provided.draggableProps}
-                                                {...provided.dragHandleProps}
-                                                className={`d-flex justify-content-between align-items-center sortable-item ${snapshot.isDragging ? 'dragging' : ''}`}
+                                                className={`d-flex justify-content-between align-items-center vehicle-item ${snapshot.isDragging ? 'dragging' : ''}`}
                                             >
-                                                <div>
-                                                    <strong>{vehicle.plate}</strong> ({vehicle.type})
-                                                    {vehicle.remarks && <small className="d-block text-muted">備註：{vehicle.remarks}</small>}
+                                                <div className="d-flex align-items-center">
+                                                    <div
+                                                        {...provided.dragHandleProps}
+                                                        className="drag-handle me-2"
+                                                        style={{
+                                                            cursor: snapshot.isDragging ? 'grabbing' : 'grab',
+                                                            fontSize: '18px',
+                                                            backgroundColor: '#f0f0f0',
+                                                            padding: '6px',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                    >
+                                                        <FaBars />
+                                                    </div>
+                                                    <div>
+                                                        <strong>{vehicle.plate}</strong> ({vehicle.type})
+                                                        {vehicle.remarks && <small className="d-block text-muted">備註：{vehicle.remarks}</small>}
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <Button
                                                         variant="outline-primary"
                                                         size="sm"
-                                                        className="me-2"
-                                                        onClick={() => {
-                                                            setSelectedVehicle(vehicle);
-                                                            setPlate(vehicle.plate);
-
-                                                            // 檢查車輛類型是否在預設選項中
-                                                            if (vehicleTypes.includes(vehicle.type)) {
-                                                                setType(vehicle.type);
-                                                                setShowTypeInput(false);
-                                                            } else {
-                                                                setType('');
-                                                                setCustomType(vehicle.type);
-                                                                setShowTypeInput(true);
-                                                            }
-
-                                                            setRemarks(vehicle.remarks || '');
-                                                            setError('');
-                                                            setShowEditModal(true);
-                                                        }}
+                                                        className="me-1"
+                                                        onClick={() => prepareEditVehicle(vehicle)}
                                                     >
                                                         編輯
                                                     </Button>
@@ -569,7 +515,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
                             </ListGroup>
                         </div>
                     )}
-                </Droppable>
+                </StrictModeDroppable>
             </DragDropContext>
 
             {vehicles.length === 0 && (
@@ -581,91 +527,91 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             {/* 新增車輛對話框 */}
             <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>車輛資料</Modal.Title>
+                    <Modal.Title>新增車輛</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
                         <Form.Group className="mb-3">
-                            <Form.Label>車牌號碼:</Form.Label>
+                            <Form.Label>車牌號碼 *</Form.Label>
                             <Form.Control
                                 type="text"
+                                placeholder="輸入車牌號碼"
                                 value={plate}
                                 onChange={(e) => setPlate(e.target.value)}
-                                placeholder="請輸入車牌號碼"
-                                isInvalid={error === '請輸入車牌號碼'}
+                                required
                             />
-                            {error === '請輸入車牌號碼' && (
-                                <Form.Control.Feedback type="invalid">
-                                    {error}
-                                </Form.Control.Feedback>
-                            )}
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>車輛種類:</Form.Label>
+                            <Form.Label>車輛類型 *</Form.Label>
                             {!showTypeInput ? (
-                                <>
+                                <div className="d-flex">
                                     <Form.Select
                                         value={type}
-                                        onChange={(e) => setType(e.target.value)}
-                                        isInvalid={error === '請選擇或輸入車輛種類'}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'custom') {
+                                                setShowTypeInput(true);
+                                                setCustomType('');
+                                            } else {
+                                                setType(e.target.value);
+                                            }
+                                        }}
+                                        className="flex-grow-1"
                                     >
-                                        {vehicleTypes.map(vType => (
-                                            <option key={vType} value={vType}>{vType}</option>
+                                        {vehicleTypes.map((type, index) => (
+                                            <option key={index} value={type}>
+                                                {type}
+                                            </option>
                                         ))}
+                                        <option value="custom">自定義類型...</option>
                                     </Form.Select>
-
-                                </>
+                                </div>
                             ) : (
-                                <>
+                                <div className="d-flex">
                                     <Form.Control
                                         type="text"
+                                        placeholder="輸入自定義類型"
                                         value={customType}
-                                        onChange={(e) => setCustomType(e.target.value)}
-                                        placeholder="請輸入自定義車輛種類"
-                                        isInvalid={error === '請選擇或輸入車輛種類'}
+                                        onChange={(e) => {
+                                            setCustomType(e.target.value);
+                                            setType(e.target.value); // 同時更新type值
+                                        }}
+                                        className="flex-grow-1"
                                     />
                                     <Button
-                                        variant="link"
-                                        className="p-0 mt-1"
+                                        variant="outline-secondary"
+                                        className="ms-2"
                                         onClick={() => {
                                             setShowTypeInput(false);
-                                            setType('水泥攪拌車');
+                                            setType(vehicleTypes[0] || '');
                                         }}
                                     >
-                                        使用預設車輛種類
+                                        取消
                                     </Button>
-                                </>
-                            )}
-                            {error === '請選擇或輸入車輛種類' && (
-                                <Form.Control.Feedback type="invalid">
-                                    {error}
-                                </Form.Control.Feedback>
+                                </div>
                             )}
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>備註:</Form.Label>
+                            <Form.Label>備註</Form.Label>
                             <Form.Control
                                 as="textarea"
-                                rows={3}
+                                rows={2}
+                                placeholder="輸入備註（選填）"
                                 value={remarks}
                                 onChange={(e) => setRemarks(e.target.value)}
-                                placeholder="請輸入備註（選填）"
                             />
                         </Form.Group>
-                    </Form>
 
-                    {error && error !== '請輸入車牌號碼' && error !== '請選擇或輸入車輛種類' && (
-                        <div className="alert alert-danger">{error}</div>
-                    )}
+                        {error && <div className="text-danger mb-3">{error}</div>}
+                    </Form>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowAddModal(false)}>
                         取消
                     </Button>
                     <Button variant="primary" onClick={addVehicle}>
-                        儲存
+                        新增
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -673,143 +619,142 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             {/* 編輯車輛對話框 */}
             <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>車輛資料</Modal.Title>
+                    <Modal.Title>編輯車輛</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
                         <Form.Group className="mb-3">
-                            <Form.Label>車牌號碼:</Form.Label>
+                            <Form.Label>車牌號碼 *</Form.Label>
                             <Form.Control
                                 type="text"
+                                placeholder="輸入車牌號碼"
                                 value={plate}
                                 onChange={(e) => setPlate(e.target.value)}
-                                isInvalid={error === '請輸入車牌號碼'}
+                                required
                             />
-                            {error === '請輸入車牌號碼' && (
-                                <Form.Control.Feedback type="invalid">
-                                    {error}
-                                </Form.Control.Feedback>
-                            )}
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>車輛種類:</Form.Label>
+                            <Form.Label>車輛類型 *</Form.Label>
                             {!showTypeInput ? (
-                                <>
+                                <div className="d-flex">
                                     <Form.Select
-                                        value={type}
-                                        onChange={(e) => setType(e.target.value)}
-                                        isInvalid={error === '請選擇或輸入車輛種類'}
+                                        value={vehicleTypes.includes(type) ? type : 'custom'}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'custom') {
+                                                setShowTypeInput(true);
+                                                setCustomType(vehicleTypes.includes(type) ? '' : type);
+                                            } else {
+                                                setType(e.target.value);
+                                            }
+                                        }}
+                                        className="flex-grow-1"
                                     >
-                                        {vehicleTypes.map(vType => (
-                                            <option key={vType} value={vType}>{vType}</option>
+                                        {vehicleTypes.map((t, index) => (
+                                            <option key={index} value={t}>
+                                                {t}
+                                            </option>
                                         ))}
+                                        <option value="custom">自定義類型...</option>
                                     </Form.Select>
-
-                                </>
+                                </div>
                             ) : (
-                                <>
+                                <div className="d-flex">
                                     <Form.Control
                                         type="text"
+                                        placeholder="輸入自定義類型"
                                         value={customType}
-                                        onChange={(e) => setCustomType(e.target.value)}
-                                        placeholder="請輸入自定義車輛種類"
-                                        isInvalid={error === '請選擇或輸入車輛種類'}
+                                        onChange={(e) => {
+                                            setCustomType(e.target.value);
+                                            setType(e.target.value); // 同時更新type值
+                                        }}
+                                        className="flex-grow-1"
                                     />
                                     <Button
-                                        variant="link"
-                                        className="p-0 mt-1"
+                                        variant="outline-secondary"
+                                        className="ms-2"
                                         onClick={() => {
                                             setShowTypeInput(false);
-                                            setType('水泥攪拌車');
+                                            setType(vehicleTypes[0] || '');
                                         }}
                                     >
-                                        使用預設車輛種類
+                                        取消
                                     </Button>
-                                </>
-                            )}
-                            {error === '請選擇或輸入車輛種類' && (
-                                <Form.Control.Feedback type="invalid">
-                                    {error}
-                                </Form.Control.Feedback>
+                                </div>
                             )}
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>備註:</Form.Label>
+                            <Form.Label>備註</Form.Label>
                             <Form.Control
                                 as="textarea"
-                                rows={3}
+                                rows={2}
+                                placeholder="輸入備註（選填）"
                                 value={remarks}
                                 onChange={(e) => setRemarks(e.target.value)}
                             />
                         </Form.Group>
-                    </Form>
 
-                    {error && error !== '請輸入車牌號碼' && error !== '請選擇或輸入車輛種類' && (
-                        <div className="alert alert-danger">{error}</div>
-                    )}
+                        {error && <div className="text-danger mb-3">{error}</div>}
+                    </Form>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowEditModal(false)}>
                         取消
                     </Button>
-                    <Button variant="primary" onClick={editVehicle}>
-                        儲存
+                    <Button variant="primary" onClick={updateVehicle}>
+                        更新
                     </Button>
                 </Modal.Footer>
             </Modal>
 
-            {/* 車輛種類管理對話框 */}
+            {/* 車輛類型管理對話框 */}
             <Modal show={showTypeManagerModal} onHide={() => setShowTypeManagerModal(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>車輛種類管理</Modal.Title>
+                    <Modal.Title>管理車輛類型</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <Form.Group className="mb-3">
-                        <Form.Label>新增車輛種類:</Form.Label>
-                        <div className="d-flex mb-2">
-                            <Form.Control
-                                type="text"
-                                value={newTypeInput}
-                                onChange={(e) => setNewTypeInput(e.target.value)}
-                                placeholder="請輸入新車輛種類名稱"
-                                isInvalid={!!typeError}
-                                className="me-2 flex-grow-1"
-                            />
-                            <Button variant="primary" onClick={addVehicleType} style={{ minWidth: '80px', whiteSpace: 'nowrap' }}>
-                                新增
-                            </Button>
-                        </div>
-                        {typeError && (
-                            <Form.Text className="text-danger">
-                                {typeError}
-                            </Form.Text>
-                        )}
-                    </Form.Group>
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>新增車輛類型</Form.Label>
+                            <div className="d-flex">
+                                <Form.Control
+                                    type="text"
+                                    placeholder="輸入新類型名稱"
+                                    value={newTypeInput}
+                                    onChange={(e) => setNewTypeInput(e.target.value)}
+                                    className="flex-grow-1"
+                                />
+                                <Button
+                                    variant="primary"
+                                    className="ms-2"
+                                    onClick={addVehicleType}
+                                >
+                                    新增
+                                </Button>
+                            </div>
+                            {typeError && <div className="text-danger mt-1">{typeError}</div>}
+                        </Form.Group>
 
-                    <hr />
-
-                    <h6>已有車輛種類:</h6>
-                    <ListGroup className="mb-3">
-                        {vehicleTypes.map(vType => (
-                            <ListGroup.Item key={vType} className="d-flex justify-content-between align-items-center">
-                                <span className="text-break flex-grow-1 me-2">{vType}</span>
-                                {(vType === '水泥攪拌車' || vType === '連結車') ? (
-                                    <span className="text-muted small">預設（無法刪除）</span>
-                                ) : (
+                        <h6 className="mt-4 mb-2">現有車輛類型</h6>
+                        <ListGroup>
+                            {vehicleTypes.map((type, index) => (
+                                <ListGroup.Item
+                                    key={index}
+                                    className="d-flex justify-content-between align-items-center"
+                                >
+                                    <span>{type}</span>
                                     <Button
                                         variant="outline-danger"
                                         size="sm"
-                                        onClick={() => deleteVehicleType(vType)}
-                                        style={{ minWidth: '70px' }}
+                                        onClick={() => deleteVehicleType(type)}
                                     >
                                         刪除
                                     </Button>
-                                )}
-                            </ListGroup.Item>
-                        ))}
-                    </ListGroup>
+                                </ListGroup.Item>
+                            ))}
+                        </ListGroup>
+                    </Form>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowTypeManagerModal(false)}>

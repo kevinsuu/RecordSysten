@@ -2,15 +2,15 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, get, set, push, remove } from 'firebase/database';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
-// Firebase 配置
+// 使用環境變量中的Firebase配置
 const firebaseConfig = {
-    apiKey: "AIzaSyBTb79ZPmqRc8s7LU1-zuRA0rUIKmTAISM",
-    authDomain: "record-system-aa15c.firebaseapp.com",
-    databaseURL: "https://record-system-aa15c-default-rtdb.firebaseio.com",
-    projectId: "record-system-aa15c",
-    storageBucket: "record-system-aa15c.firebasestorage.app",
-    messagingSenderId: "893443841090",
-    appId: "1:893443841090:web:ba67ceb1951ad832aa61db"
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+    authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+    databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL,
+    projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
 // 初始化 Firebase

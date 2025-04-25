@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
-import { FaCog, FaFileExcel, FaSignOutAlt, FaShower } from 'react-icons/fa';
+import { FaCog, FaFileExcel, FaSignOutAlt, FaShower, FaGripVertical } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -14,6 +14,7 @@ import { database } from '../services/firebase';
 import { getAuth, signOut } from 'firebase/auth';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'react-datepicker/dist/react-datepicker.css';
+import '../assets/Home.css';
 
 function Home() {
     // 狀態管理
@@ -316,11 +317,11 @@ function Home() {
 
             // 創建工作簿
             const workbook = utils.book_new();
-            utils.book_append_sheet(workbook, worksheet, '洗車紀錄');
+            utils.book_append_sheet(workbook, worksheet, '服務紀錄');
 
             // 生成檔案名稱
             const timeStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0].replace('T', '_');
-            const fileName = `洗車紀錄_${timeStr}.xlsx`;
+            const fileName = `服務紀錄_${timeStr}.xlsx`;
 
             // 匯出檔案
             writeFile(workbook, fileName);
@@ -384,7 +385,7 @@ function Home() {
                     <Navbar.Collapse id="basic-navbar-nav" className="justify-content-end">
                         <Nav>
                             <Nav.Link onClick={() => setShowWashItemManager(true)} className="d-flex align-items-center me-3">
-                                <FaShower className="me-1" /> 洗車項目管理
+                                <FaShower className="me-1" /> 服務項目管理
                             </Nav.Link>
                             <Nav.Link onClick={handleLogout} className="d-flex align-items-center">
                                 <FaSignOutAlt className="me-1" /> 登出
@@ -801,7 +802,7 @@ function Home() {
                             </Modal.Body>
                         </Modal>
 
-                        {/* 洗車項目管理對話框 */}
+                        {/* 服務項目管理對話框 */}
                         <Modal
                             show={showWashItemManager}
                             onHide={() => setShowWashItemManager(false)}
@@ -809,7 +810,7 @@ function Home() {
                             fullscreen={isMobile}
                         >
                             <Modal.Header closeButton>
-                                <Modal.Title>洗車項目管理</Modal.Title>
+                                <Modal.Title>服務項目管理</Modal.Title>
                             </Modal.Header>
                             <Modal.Body>
                                 <WashItemManager
