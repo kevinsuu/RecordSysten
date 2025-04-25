@@ -1103,7 +1103,7 @@ function Home() {
                             <Modal.Header closeButton>
                                 <Modal.Title>公司管理</Modal.Title>
                             </Modal.Header>
-                            <Modal.Body>
+                            <Modal.Body style={{ overflow: 'hidden' }}>
                                 <CompanyManager
                                     data={data}
                                     setData={setData}
@@ -1123,7 +1123,7 @@ function Home() {
                             <Modal.Header closeButton>
                                 <Modal.Title>車輛管理</Modal.Title>
                             </Modal.Header>
-                            <Modal.Body>
+                            <Modal.Body style={{ overflow: 'hidden' }}>
                                 <VehicleManager
                                     data={data}
                                     companyId={selectedCompany}

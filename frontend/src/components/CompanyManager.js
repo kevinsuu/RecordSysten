@@ -68,11 +68,10 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
         setOpenSnackbar(false);
     };
 
-    // 新增拖曳開始處理
+    // 處理拖放排序開始事件
     const onDragStart = () => {
-        setIsDragging(true);
-        // 更改游標樣式為grabbing
         document.body.style.cursor = 'grabbing';
+        setIsDragging(true);
     };
 
     // 更新全局資料
@@ -289,7 +288,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
     }, []);
 
     return (
-        <div className="company-manager">
+        <div className="company-manager" style={{ overflow: 'hidden' }}>
             {/* MUI Snackbar 通知 */}
             <Snackbar
                 open={openSnackbar}
@@ -334,6 +333,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
                             {...provided.droppableProps}
                             ref={provided.innerRef}
                             className="drag-container mb-3"
+                            style={{ overflow: 'hidden' }}
                         >
                             <ListGroup className="mb-3">
                                 {companies.map((company, index) => (

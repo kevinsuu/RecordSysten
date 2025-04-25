@@ -402,7 +402,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
     };
 
     return (
-        <div className="vehicle-manager">
+        <div className="vehicle-manager" style={{ overflow: 'hidden' }}>
             {/* MUI Snackbar 通知 */}
             <Snackbar
                 open={openSnackbar}
@@ -454,6 +454,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
                             {...provided.droppableProps}
                             ref={provided.innerRef}
                             className="drag-container mb-3"
+                            style={{ overflow: 'hidden' }}
                         >
                             <ListGroup className="mb-3">
                                 {vehicles.map((vehicle, index) => (
