@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert } from 'react-bootstrap';
-import { FaGoogle } from 'react-icons/fa';
+import { Container, Row, Col, Card, Button, Alert, Form } from 'react-bootstrap';
+import { FaGoogle, FaUser, FaLock } from 'react-icons/fa';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import logo from '../assets/image.png';
 
 const Login = ({ accessDenied }) => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
 
     // 如果接收到訪問拒絕的狀態，設置相應的錯誤消息
     useEffect(() => {
@@ -14,6 +17,62 @@ const Login = ({ accessDenied }) => {
             setError('此 Google 帳號沒有權限訪問系統，僅限授權用戶使用。');
         }
     }, [accessDenied]);
+
+    useEffect(() => {
+        // 檢查視窗大小
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+
+        return () => {
+            window.removeEventListener('resize', checkMobile);
+        };
+    }, []);
+
+    // 添加移動版樣式
+    useEffect(() => {
+        const addLoginStyles = () => {
+            const styleEl = document.createElement('style');
+            styleEl.innerHTML = `
+                @media (max-width: 768px) {
+                    .login-container {
+                        width: 90% !important;
+                        padding: 30px 20px !important;
+                        margin-top: 20px !important;
+                    }
+                    .google-btn {
+                        width: 100% !important;
+                        font-size: 1rem !important;
+                        padding: 12px !important;
+                        margin-bottom: 20px !important;
+                    }
+                    .login-title {
+                        font-size: 1.5rem !important;
+                        margin-bottom: 25px !important;
+                    }
+                    .form-group {
+                        margin-bottom: 15px !important;
+                    }
+                    .login-btn {
+                        width: 100% !important;
+                        padding: 12px !important;
+                        font-size: 1rem !important;
+                        margin-top: 10px !important;
+                    }
+                }
+            `;
+            document.head.appendChild(styleEl);
+            return () => {
+                document.head.removeChild(styleEl);
+            };
+        };
+
+        const cleanup = addLoginStyles();
+        return cleanup;
+    }, []);
 
     const handleGoogleLogin = async () => {
         try {
@@ -62,40 +121,141 @@ const Login = ({ accessDenied }) => {
         }
     };
 
+    // 處理帳號密碼登入
+    const handleCredentialLogin = async (e) => {
+        e.preventDefault();
+        try {
+            setLoading(true);
+            setError(null);
+
+            // 檢查電子郵件是否為允許的帳戶
+            if (email !== process.env.REACT_APP_LOGIN_ACCOUNT1 && email !== process.env.REACT_APP_LOGIN_ACCOUNT2) {
+                throw new Error('此帳號沒有權限訪問系統');
+            }
+
+            // 這裡可以添加密碼驗證邏輯
+            // 例如，如果密碼不正確，拋出錯誤
+            if (password !== process.env.REACT_APP_LOGIN_PASSWORD) {
+                throw new Error('密碼不正確');
+            }
+
+            // 登入成功後，可以設置本地存儲或 Cookie
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('userEmail', email);
+
+            // 重新加載頁面或重定向到主頁
+            window.location.href = '/';
+
+        } catch (error) {
+            console.error('登入失敗:', error);
+            setError(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
-        <Container className="d-flex align-items-center justify-content-center vh-100">
-            <Row className="justify-content-center w-100">
-                <Col xs={12} md={6} lg={4}>
-                    <Card className="shadow">
-                        <Card.Body className="p-4">
-                            <div className="text-center mb-4">
-                                <img src={logo} alt="Logo" className="mb-3" style={{ width: '80px', height: '80px' }} />
-                                <h2 className="fw-bold">電子紀錄系統</h2>
-                                <p className="text-muted">請登入後繼續使用</p>
-                            </div>
+        <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+        }}>
+            <div className="login-container" style={{
+                width: isMobile ? '90%' : '400px',
+                padding: '40px',
+                borderRadius: '10px',
+                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+                backgroundColor: 'white'
+            }}>
+                <h2 className="login-title" style={{ textAlign: 'center', marginBottom: '30px', color: '#3a3a3a' }}>車輛管理系統登入</h2>
 
-                            {error && (
-                                <Alert variant="danger" className="mb-3">
-                                    {error}
-                                </Alert>
-                            )}
+                {error && (
+                    <Alert variant="danger" className="mb-3">
+                        {error}
+                    </Alert>
+                )}
 
-                            <Button
-                                variant="outline-primary"
-                                size="lg"
-                                className="w-100 d-flex align-items-center justify-content-center gap-2"
-                                onClick={handleGoogleLogin}
-                                disabled={loading}
-                            >
-                                <FaGoogle />
-                                使用 Google 帳號登入
-                                {loading && <span className="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>}
-                            </Button>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-        </Container>
+                <Button
+                    className="google-btn"
+                    onClick={handleGoogleLogin}
+                    style={{
+                        backgroundColor: '#4285F4',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 15px',
+                        width: '100%',
+                        marginBottom: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: isMobile ? '1rem' : '0.9rem',
+                        borderRadius: '5px'
+                    }}
+                    disabled={loading}
+                >
+                    <FaGoogle style={{ marginRight: '10px' }} /> 使用 Google 登入
+                    {loading && <span className="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>}
+                </Button>
+
+                <div style={{ textAlign: 'center', margin: '15px 0', color: '#777', fontSize: '0.9rem' }}>
+                    或使用帳號密碼登入
+                </div>
+
+                <Form onSubmit={handleCredentialLogin}>
+                    <Form.Group className="form-group mb-3" controlId="formEmail">
+                        <Form.Label style={{ fontSize: '0.9rem', color: '#555' }}>電子郵件</Form.Label>
+                        <div style={{ position: 'relative' }}>
+                            <FaUser style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#aaa' }} />
+                            <Form.Control
+                                type="email"
+                                placeholder="請輸入電子郵件"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                style={{ paddingLeft: '35px' }}
+                            />
+                        </div>
+                    </Form.Group>
+
+                    <Form.Group className="form-group mb-3" controlId="formPassword">
+                        <Form.Label style={{ fontSize: '0.9rem', color: '#555' }}>密碼</Form.Label>
+                        <div style={{ position: 'relative' }}>
+                            <FaLock style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#aaa' }} />
+                            <Form.Control
+                                type="password"
+                                placeholder="請輸入密碼"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                style={{ paddingLeft: '35px' }}
+                            />
+                        </div>
+                    </Form.Group>
+
+                    <Button
+                        type="submit"
+                        className="login-btn"
+                        style={{
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '5px',
+                            padding: '10px 0',
+                            width: '100%',
+                            marginTop: '15px',
+                            cursor: 'pointer',
+                            fontSize: isMobile ? '1rem' : '0.9rem'
+                        }}
+                        disabled={loading}
+                    >
+                        登入
+                        {loading && <span className="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>}
+                    </Button>
+                </Form>
+            </div>
+        </div>
     );
 };
 

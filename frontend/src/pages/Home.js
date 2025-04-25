@@ -32,7 +32,7 @@ function Home() {
 
     // 添加分頁相關狀態
     const [currentPage, setCurrentPage] = useState(1);
-    const [recordsPerPage] = useState(8);
+    const [recordsPerPage] = useState(10);
 
     // 添加表單參考以進行滾動
     const tableRef = useRef(null);
@@ -485,6 +485,7 @@ function Home() {
                 .pagination-mobile {
                     position: relative;
                     z-index: 1000;
+                    margin-bottom: 100px !important;
                 }
                 .pagination-mobile .page-link {
                     padding: 0.25rem 0.5rem;
@@ -497,15 +498,129 @@ function Home() {
                     right: 0;
                     display: flex;
                     justify-content: space-between;
-                    padding: 10px 20px;
-                    background-color: rgba(255, 255, 255, 0.9);
+                    padding: 15px 20px;
+                    background-color: rgba(255, 255, 255, 0.95);
                     z-index: 1000;
                     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
                 }
                 .action-buttons-mobile .btn {
                     font-size: 1.1rem;
-                    padding: 10px 15px;
-                    min-width: 45%;
+                    padding: 12px 15px;
+                    min-width: 46%;
+                    border-radius: 8px;
+                }
+                
+                /* 卡片式顯示替代表格 */
+                @media (max-width: 768px) {
+                    .card-view-container {
+                        margin-bottom: 120px;
+                    }
+                    
+                    .record-card {
+                        background-color: white;
+                        border-radius: 10px;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                        margin-bottom: 16px;
+                        padding: 16px;
+                        border-left: 4px solid #007bff;
+                    }
+                    
+                    .record-card-header {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 12px;
+                        border-bottom: 1px solid #eee;
+                        padding-bottom: 8px;
+                    }
+                    
+                    .record-card-company {
+                        font-weight: bold;
+                        font-size: 1.1rem;
+                    }
+                    
+                    .record-card-date {
+                        color: #666;
+                    }
+                    
+                    .record-card-type {
+                        font-size: 0.9rem;
+                        background-color: #f8f9fa;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        margin-bottom: 10px;
+                        display: inline-block;
+                    }
+                    
+                    .record-card-plate {
+                        margin-bottom: 10px;
+                        font-weight: 500;
+                    }
+                    
+                    .record-card-items {
+                        margin-top: 12px;
+                        margin-bottom: 12px;
+                    }
+                    
+                    .record-card-item {
+                        background-color: #f8f9fa;
+                        padding: 8px 10px;
+                        border-radius: 6px;
+                        margin-bottom: 8px;
+                        border-left: 3px solid #dee2e6;
+                    }
+                    
+                    .record-card-total {
+                        text-align: right;
+                        font-weight: bold;
+                        font-size: 1.15rem;
+                        margin-top: 12px;
+                        padding-top: 10px;
+                        border-top: 1px solid #eee;
+                    }
+                    
+                    .record-card-action {
+                        margin-top: 12px;
+                        text-align: right;
+                    }
+                    
+                    .record-card-remarks {
+                        font-style: italic;
+                        color: #666;
+                        margin-top: 8px;
+                        margin-bottom: 8px;
+                        padding-left: 10px;
+                        border-left: 2px solid #ddd;
+                    }
+                    
+                    /* 隱藏原始表格 */
+                    .table-responsive {
+                        display: none;
+                    }
+                    
+                    /* 移動版底部固定導航 */
+                    .mobile-bottom-nav {
+                        position: fixed;
+                        bottom: 0;
+                        left: 0;
+                        right: 0;
+                        display: flex;
+                        justify-content: space-between;
+                        padding: 15px 20px;
+                        background-color: rgba(255, 255, 255, 0.95);
+                        z-index: 1000;
+                        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+                    }
+                    
+                    .mobile-bottom-nav .btn {
+                        font-size: 1.05rem;
+                        padding: 12px 15px;
+                        min-width: 46%;
+                        border-radius: 8px;
+                    }
+                    
+                    .mobile-bottom-nav .btn-icon {
+                        margin-right: 6px;
+                    }
                 }
             `;
             document.head.appendChild(styleEl);
@@ -719,9 +834,9 @@ function Home() {
                             </>
                         ) : (
                             // 移動版控制區域
-                            <div className="bg-light p-3 rounded mb-3">
+                            <div className="bg-light p-3 rounded mb-4 search-card">
                                 {/* 公司選擇 */}
-                                <Form.Group className="mb-3">
+                                <Form.Group className="mb-4">
                                     <Form.Label className="fw-bold mb-2">公司</Form.Label>
                                     <div className="d-flex">
                                         <Form.Select
@@ -749,7 +864,7 @@ function Home() {
                                 </Form.Group>
 
                                 {/* 車輛選擇 */}
-                                <Form.Group className="mb-3">
+                                <Form.Group className="mb-4">
                                     <Form.Label className="fw-bold mb-2">車輛</Form.Label>
                                     <div className="d-flex">
                                         <Form.Select
@@ -786,7 +901,7 @@ function Home() {
                                 </Form.Group>
 
                                 {/* 移動版日期範圍選擇 */}
-                                <Form.Group className="mb-3 mt-2">
+                                <Form.Group className="mb-4 mt-3">
                                     <Form.Label className="fw-bold mb-2">日期範圍</Form.Label>
                                     <div className="mb-2">
                                         <Form.Label className="text-muted small">起始日期</Form.Label>
@@ -815,7 +930,7 @@ function Home() {
                                 </Form.Group>
 
                                 {/* 移動版搜尋輸入 */}
-                                <Form.Group className="mb-3">
+                                <Form.Group className="mb-4">
                                     <Form.Label className="fw-bold mb-2">關鍵字搜尋</Form.Label>
                                     <Form.Control
                                         type="text"
@@ -835,7 +950,7 @@ function Home() {
                             </div>
                         )}
 
-                        {/* 資料表格容器 */}
+                        {/* 資料表格容器 - 桌面版 */}
                         <div
                             ref={tableRef}
                             className={`table-responsive ${isMobile ? 'table-container-mobile' : ''}`}
@@ -843,16 +958,16 @@ function Home() {
                         >
                             <Table striped bordered hover className="mb-0">
                                 <thead>
-                                    <tr>
-                                        <th>類型</th>
-                                        <th>日期</th>
-                                        <th>公司</th>
-                                        <th>車牌</th>
+                                    <tr className={isMobile ? "bg-light" : ""}>
+                                        <th style={isMobile ? { width: "60px" } : {}}>類型</th>
+                                        <th style={isMobile ? { width: "95px" } : {}}>日期</th>
+                                        <th style={isMobile ? { width: "65px" } : {}}>公司</th>
+                                        <th style={isMobile ? { width: "80px" } : {}}>車牌</th>
                                         {!isMobile && <th>車種</th>}
-                                        <th>服務項目</th>
+                                        <th style={isMobile ? { width: "auto" } : {}}>服務項目</th>
                                         {!isMobile && <th>備註</th>}
-                                        <th>金額</th>
-                                        <th>操作</th>
+                                        <th style={isMobile ? { width: "70px" } : {}}>金額</th>
+                                        <th style={isMobile ? { width: "60px" } : {}}>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -870,7 +985,7 @@ function Home() {
                                                     const itemName = typeof item === 'string' ? item : item.name;
                                                     const itemPrice = typeof item === 'string' ? 0 : item.price;
                                                     return (
-                                                        <div key={idx}>• {itemName} - ${itemPrice}</div>
+                                                        <div key={idx} className={isMobile ? "item-mobile" : ""}>• {itemName} - ${itemPrice}</div>
                                                     );
                                                 })}
                                             </td>
@@ -896,26 +1011,83 @@ function Home() {
                             </Table>
                             <div style={{ height: "20px" }}></div>
                             {renderPagination()}
-
                         </div>
 
+                        {/* 卡片視圖容器 - 移動版 */}
+                        {isMobile && (
+                            <div className="card-view-container">
+                                {currentRecords.length === 0 ? (
+                                    <div className="text-center p-4 bg-light rounded">
+                                        沒有找到符合條件的記錄
+                                    </div>
+                                ) : (
+                                    currentRecords.map((record, index) => (
+                                        <div key={index} className="record-card">
+                                            <div className="record-card-header">
+                                                <div className="record-card-company">{record.companyName}</div>
+                                                <div className="record-card-date">{record.date}</div>
+                                            </div>
+                                            <div className="record-card-type">
+                                                {getPaymentTypeText(record.payment_type)}
+                                            </div>
+                                            <div className="record-card-plate">
+                                                車牌：{record.vehicle.plate}
+                                                {record.vehicle.type && <span> ({record.vehicle.type})</span>}
+                                            </div>
+
+                                            {record.remarks && (
+                                                <div className="record-card-remarks">
+                                                    備註：{record.remarks}
+                                                </div>
+                                            )}
+
+                                            <div className="record-card-items">
+                                                {record.items.map((item, idx) => {
+                                                    const itemName = typeof item === 'string' ? item : item.name;
+                                                    const itemPrice = typeof item === 'string' ? 0 : item.price;
+                                                    return (
+                                                        <div key={idx} className="record-card-item">
+                                                            • {itemName} - ${itemPrice}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <div className="record-card-total">
+                                                總金額：${calculateTotal(record.items).toLocaleString()}
+                                            </div>
+
+                                            <div className="record-card-action">
+                                                <Button
+                                                    variant="danger"
+                                                    size="sm"
+                                                    onClick={() => deleteRecord(record)}
+                                                >
+                                                    刪除
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                                {renderPagination()}
+                            </div>
+                        )}
 
                         {/* 移動版底部固定按鈕 */}
                         {isMobile && (
-                            <div className="action-buttons-mobile" style={{ marginTop: "80px" }}>
+                            <div className="mobile-bottom-nav">
                                 <Button
                                     variant="primary"
                                     onClick={() => setShowAddRecord(true)}
-                                    className="d-flex align-items-center justify-content-center"
                                 >
-                                    <span className="me-2">新增紀錄</span>
+                                    <span className="btn-icon">+</span>
+                                    新增紀錄
                                 </Button>
                                 <Button
                                     variant="success"
                                     onClick={exportToExcel}
-                                    className="d-flex align-items-center justify-content-center"
                                 >
-                                    <FaFileExcel className="me-2" />
+                                    <FaFileExcel className="btn-icon" />
                                     匯出資料
                                 </Button>
                             </div>
