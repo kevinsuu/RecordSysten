@@ -1,20 +1,48 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, get, set, push, remove } from 'firebase/database';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 // Firebase 配置
 const firebaseConfig = {
-    apiKey: "AIzaSyDQFhAHUFSG6a-p-aOD0MU5UKvWAiZh5cg",
+    apiKey: "AIzaSyBTb79ZPmqRc8s7LU1-zuRA0rUIKmTAISM",
     authDomain: "record-system-aa15c.firebaseapp.com",
     databaseURL: "https://record-system-aa15c-default-rtdb.firebaseio.com",
     projectId: "record-system-aa15c",
-    storageBucket: "record-system-aa15c.appspot.com",
-    messagingSenderId: "356063499579",
-    appId: "1:356063499579:web:54f6dd5d9e9ec8be686a1d"
+    storageBucket: "record-system-aa15c.firebasestorage.app",
+    messagingSenderId: "893443841090",
+    appId: "1:893443841090:web:ba67ceb1951ad832aa61db"
 };
 
 // 初始化 Firebase
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
+let app;
+let database;
+let auth;
+
+try {
+    app = initializeApp(firebaseConfig);
+    console.log("Firebase 初始化成功:", app.name);
+
+    database = getDatabase(app);
+    auth = getAuth(app);
+
+    // 檢查身份驗證是否正確初始化
+    console.log("Firebase Auth 配置:", auth.config);
+    console.log("Firebase 當前項目 ID:", app.options.projectId);
+} catch (error) {
+    console.error("Firebase 初始化失敗:", error);
+}
+
+// Google 登入
+export const signInWithGoogle = async () => {
+    try {
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        return result.user;
+    } catch (error) {
+        console.error('Google 登入失敗:', error);
+        throw error;
+    }
+};
 
 // 獲取所有資料
 export const getAllData = async () => {
@@ -142,6 +170,16 @@ export const deleteRecord = async (companyId, vehicleId, recordIndex) => {
     }
 };
 
+// 登出用戶
+export const signOut = async () => {
+    try {
+        await auth.signOut();
+    } catch (error) {
+        console.error('登出時發生錯誤:', error);
+        throw error;
+    }
+};
+
 // 更新排序索引
 export const updateSortIndex = async (path, sortIndex) => {
     try {
@@ -152,5 +190,5 @@ export const updateSortIndex = async (path, sortIndex) => {
     }
 };
 
-export { database };
+export { database, auth };
 export default app; 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button, Form, Row, Col, Table, Modal, ListGroup, InputGroup } from 'react-bootstrap';
-import { ref, set, push } from 'firebase/database';
+import { Button, Form, Row, Col, InputGroup } from 'react-bootstrap';
+import { ref, set } from 'firebase/database';
 import DatePicker from 'react-datepicker';
 import { FaPlus, FaTrash } from 'react-icons/fa';
 
@@ -80,7 +80,6 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             };
 
             // 獲取當前車輛的記錄
-            const vehicleRef = ref(database, `companies/${selectedCompanyId}/vehicles/${selectedVehicleId}`);
             const vehicleData = data.companies[selectedCompanyId].vehicles[selectedVehicleId];
             const records = vehicleData.records || [];
 
