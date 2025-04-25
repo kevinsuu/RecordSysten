@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav, Pagination } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
 import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt, FaGripVertical } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
@@ -29,6 +29,13 @@ function Home() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    // 添加分頁相關狀態
+    const [currentPage, setCurrentPage] = useState(1);
+    const [recordsPerPage] = useState(8);
+
+    // 添加表單參考以進行滾動
+    const tableRef = useRef(null);
 
     // Modal 狀態管理
     const [showCompanyManager, setShowCompanyManager] = useState(false);
@@ -317,11 +324,11 @@ function Home() {
 
             // 創建工作簿
             const workbook = utils.book_new();
-            utils.book_append_sheet(workbook, worksheet, '服務紀錄');
+            utils.book_append_sheet(workbook, worksheet, '電子系統紀錄');
 
             // 生成檔案名稱
             const timeStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0].replace('T', '_');
-            const fileName = `服務紀錄_${timeStr}.xlsx`;
+            const fileName = `電子系統紀錄_${timeStr}.xlsx`;
 
             // 匯出檔案
             writeFile(workbook, fileName);
@@ -374,6 +381,142 @@ function Home() {
             severity
         });
     };
+
+    // 計算當前頁面的記錄
+    const indexOfLastRecord = currentPage * recordsPerPage;
+    const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
+    const currentRecords = filteredRecords.slice(indexOfFirstRecord, indexOfLastRecord);
+
+    // 計算頁碼
+    const totalPages = Math.ceil(filteredRecords.length / recordsPerPage);
+
+    // 處理頁面變化
+    const handlePageChange = (pageNumber) => {
+        setCurrentPage(pageNumber);
+        // 當頁面變化時滾動到表單
+        if (tableRef.current) {
+            tableRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
+    // 當過濾條件變化時重置頁碼到第一頁
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedCompany, selectedVehicle, startDate, endDate, searchText]);
+
+    // 處理表單點擊
+    const handleTableClick = () => {
+        if (tableRef.current) {
+            tableRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
+    // 生成分頁控制元素
+    const renderPagination = () => {
+        if (totalPages <= 1) return null;
+
+        const pageItems = [];
+        const maxPagesToShow = isMobile ? 2 : 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        // 調整，確保顯示足夠的頁碼
+        if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        // 添加首頁
+        if (startPage > 1) {
+            pageItems.push(
+                <Pagination.Item key={1} onClick={() => handlePageChange(1)}>
+                    1
+                </Pagination.Item>
+            );
+            if (startPage > 2) {
+                pageItems.push(<Pagination.Ellipsis key="ellipsis-start" />);
+            }
+        }
+
+        // 添加頁碼
+        for (let i = startPage; i <= endPage; i++) {
+            pageItems.push(
+                <Pagination.Item
+                    key={i}
+                    active={i === currentPage}
+                    onClick={() => handlePageChange(i)}
+                >
+                    {i}
+                </Pagination.Item>
+            );
+        }
+
+        // 添加末頁
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                pageItems.push(<Pagination.Ellipsis key="ellipsis-end" />);
+            }
+            pageItems.push(
+                <Pagination.Item key={totalPages} onClick={() => handlePageChange(totalPages)}>
+                    {totalPages}
+                </Pagination.Item>
+            );
+        }
+
+        return (
+            <Pagination className={`justify-content-center ${isMobile ? 'pagination-mobile mb-5 pb-4' : 'my-2'}`} size="sm">
+                <Pagination.Prev
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                />
+                {pageItems}
+                <Pagination.Next
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                />
+            </Pagination>
+        );
+    };
+
+    // 添加CSS部分：在return函數前或其他適當位置添加
+    useEffect(() => {
+        const addStyles = () => {
+            const styleEl = document.createElement('style');
+            styleEl.innerHTML = `
+                .pagination-mobile {
+                    position: relative;
+                    z-index: 1000;
+                }
+                .pagination-mobile .page-link {
+                    padding: 0.25rem 0.5rem;
+                    font-size: 0.875rem;
+                }
+                .action-buttons-mobile {
+                    position: fixed;
+                    bottom: 20px;
+                    left: 0;
+                    right: 0;
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 10px 20px;
+                    background-color: rgba(255, 255, 255, 0.9);
+                    z-index: 1000;
+                    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+                }
+                .action-buttons-mobile .btn {
+                    font-size: 1.1rem;
+                    padding: 10px 15px;
+                    min-width: 45%;
+                }
+            `;
+            document.head.appendChild(styleEl);
+            return () => {
+                document.head.removeChild(styleEl);
+            };
+        };
+
+        const cleanup = addStyles();
+        return cleanup;
+    }, []);
 
     return (
         <>
@@ -494,6 +637,7 @@ function Home() {
                                         {/* 按鈕區 */}
                                         <Col md={4} className="mb-2">
                                             <div className="d-flex align-items-center">
+                                                <Form.Label className="fw-bold me-2 mb-0" style={{ minWidth: "40px" }}>操作</Form.Label>
                                                 <div className="d-flex justify-content-end flex-grow-1">
                                                     <Button
                                                         variant="primary"
@@ -560,7 +704,7 @@ function Home() {
                                         {/* 清除搜尋按鈕 */}
                                         <Col md={2} className="mb-2">
                                             <div className="d-flex align-items-center">
-
+                                                <Form.Label className="fw-bold me-2 mb-0" style={{ minWidth: "20px" }}>清除</Form.Label>
                                                 <Button
                                                     variant="secondary"
                                                     onClick={clearSearch}
@@ -692,7 +836,11 @@ function Home() {
                         )}
 
                         {/* 資料表格容器 */}
-                        <div className={`table-responsive ${isMobile ? 'table-container-mobile' : ''}`}>
+                        <div
+                            ref={tableRef}
+                            className={`table-responsive ${isMobile ? 'table-container-mobile' : ''}`}
+                            onClick={handleTableClick}
+                        >
                             <Table striped bordered hover className="mb-0">
                                 <thead>
                                     <tr>
@@ -708,7 +856,7 @@ function Home() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredRecords.map((record, index) => (
+                                    {currentRecords.map((record, index) => (
                                         <tr key={index}>
                                             <td>{getPaymentTypeText(record.payment_type)}</td>
                                             <td>{record.date}</td>
@@ -739,29 +887,35 @@ function Home() {
                                             </td>
                                         </tr>
                                     ))}
-                                    {filteredRecords.length === 0 && (
+                                    {currentRecords.length === 0 && (
                                         <tr>
                                             <td colSpan={isMobile ? 7 : 9} className="text-center">沒有找到符合條件的記錄</td>
                                         </tr>
                                     )}
                                 </tbody>
                             </Table>
+                            <div style={{ height: "20px" }}></div>
+                            {renderPagination()}
+
                         </div>
+
 
                         {/* 移動版底部固定按鈕 */}
                         {isMobile && (
-                            <div className="action-buttons-mobile">
+                            <div className="action-buttons-mobile" style={{ marginTop: "80px" }}>
                                 <Button
                                     variant="primary"
                                     onClick={() => setShowAddRecord(true)}
+                                    className="d-flex align-items-center justify-content-center"
                                 >
-                                    新增紀錄
+                                    <span className="me-2">新增紀錄</span>
                                 </Button>
                                 <Button
                                     variant="success"
                                     onClick={exportToExcel}
+                                    className="d-flex align-items-center justify-content-center"
                                 >
-                                    <FaFileExcel className="me-1" />
+                                    <FaFileExcel className="me-2" />
                                     匯出資料
                                 </Button>
                             </div>
