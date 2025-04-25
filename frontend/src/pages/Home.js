@@ -112,19 +112,43 @@ function Home() {
     }, [processRecords]);
 
     // 當其他元件儲存資料後的處理函數
-    const onSave = useCallback((options = {}) => {
-        // 如果指定不重新載入，就直接返回
+    const onSave = (options = {}) => {
+        // 如果傳入reload為false，則避免重新載入
         if (options.reload === false) {
+            // 如果有新記錄資料，直接更新本地狀態
+            if (options.newRecord) {
+                // 直接將新記錄添加到記錄列表
+                setRecords(prevRecords => [options.newRecord, ...prevRecords]);
+            }
+
+            // 若有更新後的完整資料，則更新資料狀態
+            if (options.updatedData) {
+                setData(options.updatedData);
+                // 如果有需要，重新處理記錄
+                processRecords(options.updatedData);
+            }
+
+            // 根據來源決定是否關閉對應的模態
+            if (!options.source || options.source !== 'VehicleManager') {
+                setShowVehicleManager(false);
+            }
+
+            if (!options.source || options.source !== 'CompanyManager') {
+                setShowCompanyManager(false);
+            }
+
+            // AddRecordForm完成後一律返回主頁面
+            setShowAddRecord(false);
+
             return;
         }
 
-        // 否則重新載入資料並關閉所有模態視窗
+        // 否則執行原本的重新載入邏輯
         loadData();
+        setShowAddRecord(false);
         setShowCompanyManager(false);
         setShowVehicleManager(false);
-        setShowAddRecord(false);
-        setShowWashItemManager(false);
-    }, [loadData]);
+    };
 
     // 過濾記錄
     const filterRecords = useCallback(() => {
@@ -772,10 +796,7 @@ function Home() {
                                     database={database}
                                     companyId={selectedCompany !== 'all' ? selectedCompany : ''}
                                     vehicleId={selectedVehicle !== 'all' ? selectedVehicle : ''}
-                                    onSave={(options) => {
-                                        onSave(options);
-                                        setShowAddRecord(false);
-                                    }}
+                                    onSave={onSave}
                                 />
                             </Modal.Body>
                         </Modal>

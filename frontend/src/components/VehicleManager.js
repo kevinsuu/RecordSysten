@@ -262,7 +262,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             showNotification('新增車輛成功！', 'success');
 
             // 通知父元件，但不觸發全頁重新載入
-            if (onSave) onSave({ reload: false });
+            if (onSave) onSave({ reload: false, source: 'VehicleManager' });
         } catch (error) {
             console.error('添加車輛時發生錯誤:', error);
             setError(`添加車輛時發生錯誤: ${error.message}`);
@@ -317,6 +317,22 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             );
             setVehicles(newVehicles);
 
+            // 更新全局狀態，避免全頁重新載入
+            if (setData) {
+                const newData = JSON.parse(JSON.stringify(data));
+                if (!newData.companies[companyId].vehicles) {
+                    newData.companies[companyId].vehicles = {};
+                }
+                newData.companies[companyId].vehicles[selectedVehicle.id] = {
+                    plate: updatedVehicle.plate,
+                    type: updatedVehicle.type,
+                    remarks: updatedVehicle.remarks,
+                    records: updatedVehicle.records || [],
+                    sort_index: updatedVehicle.sort_index
+                };
+                setData(newData);
+            }
+
             // 清除表單
             setPlate('');
             setType('水泥攪拌車');
@@ -327,11 +343,15 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             setShowEditModal(false);
             setError('');
 
-            // 通知父元件
-            if (onSave) onSave();
+            // 顯示成功通知
+            showNotification('編輯車輛成功！', 'success');
+
+            // 通知父元件，但不觸發重新載入
+            if (onSave) onSave({ reload: false, source: 'VehicleManager' });
         } catch (error) {
             console.error('編輯車輛時發生錯誤:', error);
             setError(`編輯車輛時發生錯誤: ${error.message}`);
+            showNotification('編輯車輛失敗！', 'error');
         }
     };
 
@@ -361,11 +381,27 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
 
             setVehicles(reorderedVehicles);
 
-            // 通知父元件
-            if (onSave) onSave();
+            // 更新全局狀態，避免全頁重新載入
+            if (setData) {
+                const newData = JSON.parse(JSON.stringify(data));
+                // 刪除車輛
+                delete newData.companies[companyId].vehicles[vehicle.id];
+
+                // 更新其他車輛的排序索引
+                reorderedVehicles.forEach(v => {
+                    if (newData.companies[companyId].vehicles[v.id]) {
+                        newData.companies[companyId].vehicles[v.id].sort_index = v.sort_index;
+                    }
+                });
+
+                setData(newData);
+            }
+
+            // 通知父元件，但不觸發全頁重新載入
+            if (onSave) onSave({ reload: false, source: 'VehicleManager' });
 
             // 顯示成功通知
-            showNotification('車輛已成功刪除！');
+            showNotification('車輛已成功刪除！', 'success');
         } catch (error) {
             console.error('刪除車輛時發生錯誤:', error);
             showNotification(`刪除車輛時發生錯誤: ${error.message}`, 'error');
@@ -393,8 +429,22 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             await set(ref(database, `companies/${companyId}/vehicles/${vehicle.id}/sort_index`), vehicle.sort_index);
         });
 
-        // 通知父元件
-        if (onSave) onSave();
+        // 更新全局狀態，避免全頁重新載入
+        if (setData) {
+            const newData = JSON.parse(JSON.stringify(data));
+
+            // 更新車輛排序索引
+            reorderedVehicles.forEach(vehicle => {
+                if (newData.companies[companyId].vehicles[vehicle.id]) {
+                    newData.companies[companyId].vehicles[vehicle.id].sort_index = vehicle.sort_index;
+                }
+            });
+
+            setData(newData);
+        }
+
+        // 通知父元件，但不觸發全頁重新載入
+        if (onSave) onSave({ reload: false, source: 'VehicleManager' });
     };
 
     // 重置表單

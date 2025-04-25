@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Row, Col, InputGroup, Card, ListGroup } from 'react-bootstrap';
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, push } from 'firebase/database';
 import DatePicker from 'react-datepicker';
 import { FaPlus, FaTrash, FaCalendarAlt, FaCheck } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
@@ -19,6 +19,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
     const [remarks, setRemarks] = useState('');
     const [error, setError] = useState('');
     const [washItems, setWashItems] = useState([]);
+    const [isSaving, setIsSaving] = useState(false);
 
     // 通知狀態
     const [snackbar, setSnackbar] = useState({
@@ -221,9 +222,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
     };
 
     // 儲存記錄
-    const saveRecord = async (event) => {
-        event.preventDefault();
-
+    const saveRecord = async () => {
         if (!selectedCompanyId) {
             setError('請選擇公司');
             showNotification('請選擇公司', 'danger');
@@ -243,6 +242,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
         }
 
         setError('');
+        setIsSaving(true);
 
         try {
             // 準備新記錄數據
@@ -280,19 +280,34 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             setRemarks('');
             setError('');
 
-            // 處理父組件回調時顯示主畫面更新的記錄
-            if (onSave) {
-                // 特別移除 { reload: false } 參數，讓父組件使用預設行為
-                // 或者明確指示需要重新載入
-                onSave({ reload: true });
-            }
+            // 創建一個格式化的記錄用於前端顯示
+            const formattedRecord = {
+                ...newRecord,
+                companyId: selectedCompanyId,
+                companyName: data.companies[selectedCompanyId].name,
+                vehicleId: selectedVehicleId,
+                vehicle: {
+                    plate: data.companies[selectedCompanyId].vehicles[selectedVehicleId].plate,
+                    type: data.companies[selectedCompanyId].vehicles[selectedVehicleId].type,
+                    remarks: data.companies[selectedCompanyId].vehicles[selectedVehicleId].remarks || ''
+                }
+            };
 
-            // 顯示通知
-            showNotification('記錄儲存成功', 'success');
+            // 通知父元件，傳遞新紀錄和reload=false，避免重新載入
+            onSave({
+                reload: false,
+                newRecord: formattedRecord,
+                updatedData: newData,
+                source: 'AddRecordForm'
+            });
+
+            showNotification('記錄已成功儲存', 'success');
         } catch (error) {
-            console.error('新增記錄時發生錯誤:', error);
-            setError(`新增記錄時發生錯誤: ${error.message}`);
-            showNotification(`新增記錄時發生錯誤: ${error.message}`, 'danger');
+            console.error('儲存記錄時發生錯誤:', error);
+            setError(`儲存記錄時發生錯誤: ${error.message}`);
+            showNotification(`儲存記錄時發生錯誤: ${error.message}`, 'danger');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -426,7 +441,9 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                                                 className="d-flex justify-content-between align-items-center py-2"
                                                 style={{
                                                     backgroundColor: isItemSelected(item) ? '#e6f2ff' : 'white',
-                                                    cursor: 'pointer'
+                                                    cursor: 'pointer',
+                                                    color: isItemSelected(item) ? '#000' : 'inherit',
+                                                    fontWeight: isItemSelected(item) ? '500' : 'normal'
                                                 }}
                                             >
                                                 <div className="d-flex align-items-center">
@@ -435,7 +452,9 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                                                     </div>
                                                     <span>{formatWashItemName(item)}</span>
                                                 </div>
-                                                <span style={styles.itemPrice}>${formatWashItemPrice(item)}</span>
+                                                <span style={isItemSelected(item) ?
+                                                    { ...styles.itemPrice, fontWeight: '600' } :
+                                                    styles.itemPrice}>${formatWashItemPrice(item)}</span>
                                             </ListGroup.Item>
                                         ))}
                                     </ListGroup>
@@ -554,8 +573,9 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                                 style={styles.submitButton}
                                 size="lg"
                                 type="button"
+                                disabled={isSaving}
                             >
-                                儲存紀錄
+                                {isSaving ? '儲存中...' : '儲存紀錄'}
                             </Button>
                         </div>
                     </Form>

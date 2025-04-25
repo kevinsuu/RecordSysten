@@ -106,7 +106,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             showNotification('新增公司成功！', 'success');
 
             // 通知父元件，但不觸發重新載入
-            if (onSave) onSave({ reload: false });
+            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
         } catch (error) {
             console.error('添加公司時發生錯誤:', error);
             setError(`添加公司時發生錯誤: ${error.message}`);
@@ -163,7 +163,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             showNotification('更新公司成功！', 'success');
 
             // 通知父元件，但不觸發重新載入
-            if (onSave) onSave({ reload: false });
+            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
         } catch (error) {
             console.error('編輯公司時發生錯誤:', error);
             setError(`編輯公司時發生錯誤: ${error.message}`);
@@ -204,7 +204,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             showNotification(`成功刪除「${company.name}」公司`, 'success');
 
             // 通知父元件，但不觸發重新載入
-            if (onSave) onSave({ reload: false });
+            if (onSave) onSave({ reload: false, source: 'CompanyManager' });
         } catch (error) {
             console.error('刪除公司時發生錯誤:', error);
             showNotification(`刪除公司時發生錯誤: ${error.message}`, 'error');
@@ -236,7 +236,7 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
         });
 
         // 通知父元件，但不觸發重新載入
-        if (onSave) onSave({ reload: false });
+        if (onSave) onSave({ reload: false, source: 'CompanyManager' });
     };
 
     // 清除表單
