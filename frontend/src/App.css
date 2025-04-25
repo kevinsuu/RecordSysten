@@ -1,0 +1,142 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.app-container {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* 表格樣式 */
+.table-responsive {
+  overflow-x: auto;
+}
+
+.table th {
+  background-color: #e0e0e0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* 表格中的服務項目列顯示多行 */
+.table td:nth-child(6) {
+  white-space: pre-line;
+}
+
+/* 工具提示樣式 */
+[title] {
+  cursor: help;
+  border-bottom: 1px dotted #ccc;
+}
+
+/* 表單元素樣式 */
+.form-control:focus,
+.form-select:focus {
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 按鈕區域樣式 */
+.btn-primary {
+  background-color: #007bff;
+}
+
+.btn-primary:hover {
+  background-color: #0069d9;
+}
+
+.btn-success {
+  background-color: #28a745;
+}
+
+.btn-success:hover {
+  background-color: #218838;
+}
+
+/* 日期選擇器樣式 */
+.react-datepicker-wrapper {
+  width: auto;
+  flex-grow: 1;
+}
+
+.react-datepicker__input-container input {
+  width: 100%;
+}
+
+/* 拖曳排序樣式 */
+.sortable-item {
+  cursor: grab;
+  padding: 8px;
+  margin: 4px 0;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.sortable-item:hover {
+  background-color: #e9ecef;
+}
+
+.sortable-item.dragging {
+  opacity: 0.5;
+  background-color: #e2e6ea;
+}
+
+/* 響應式設計調整 */
+@media (max-width: 768px) {
+  .table-responsive {
+    font-size: 0.875rem;
+  }
+
+  .btn {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .app-container {
+    padding: 10px;
+  }
+}
