@@ -18,16 +18,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: 檢出代碼
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: 配置 GitHub Pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v4
         
       - name: 上傳構建產物
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: 'frontend/build'
           
       - name: 部署到 GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2 
+        uses: actions/deploy-pages@v4 
