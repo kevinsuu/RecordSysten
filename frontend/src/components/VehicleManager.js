@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Form, Row, Col, Modal, ListGroup, Toast, ToastContainer } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button, Form, Row, Col, Modal, ListGroup } from 'react-bootstrap';
 import { ref, set, push, remove, get } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaCog, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaCog } from 'react-icons/fa';
+// MUI 組件
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 
 const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
     // 狀態管理
@@ -21,9 +24,9 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
     const [newTypeInput, setNewTypeInput] = useState('');
 
     // 通知相關狀態
-    const [showToast, setShowToast] = useState(false);
-    const [toastMessage, setToastMessage] = useState('');
-    const [toastType, setToastType] = useState('success'); // 'success' 或 'error'
+    const [openSnackbar, setOpenSnackbar] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState('success'); // 'success' 或 'error'
 
     // 表單欄位
     const [plate, setPlate] = useState('');
@@ -31,6 +34,36 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
     const [remarks, setRemarks] = useState('');
     const [error, setError] = useState('');
     const [typeError, setTypeError] = useState('');
+
+    // 顯示通知函數
+    const showNotification = (message, severity = 'success') => {
+        setSnackbarMessage(message);
+        setSnackbarSeverity(severity);
+        setOpenSnackbar(true);
+    };
+
+    // 關閉通知
+    const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setOpenSnackbar(false);
+    };
+
+    // 更新全局資料但不觸發全頁重新載入
+    const updateGlobalData = useCallback((newVehicleTypes) => {
+        // 如果在 Home 組件有 setData 函數，使用它來更新本地狀態
+        if (setData) {
+            // 深拷貝當前資料
+            const newData = JSON.parse(JSON.stringify(data));
+
+            // 如果父組件支持相關字段，則更新
+            if (newData.vehicleTypes !== undefined) {
+                newData.vehicleTypes = newVehicleTypes;
+                setData(newData);
+            }
+        }
+    }, [data, setData]);
 
     // 從資料庫載入已存在的車輛類型
     useEffect(() => {
@@ -88,18 +121,13 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
         try {
             console.log('保存車輛類型到 Firebase:', types);
             await set(ref(database, 'vehicle_types'), types);
+            // 更新全局狀態，避免全頁重新載入
+            updateGlobalData(types);
             return true;
         } catch (error) {
             console.error('保存車輛類型時發生錯誤:', error);
             return false;
         }
-    };
-
-    // 顯示通知函數
-    const showNotification = (message, type = 'success') => {
-        setToastMessage(message);
-        setToastType(type);
-        setShowToast(true);
     };
 
     // 添加車輛類型
@@ -114,12 +142,12 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             return;
         }
 
-        const newTypes = [...vehicleTypes, newTypeInput.trim()];
+        const typeName = newTypeInput.trim();
+        const newTypes = [...vehicleTypes, typeName];
         setVehicleTypes(newTypes);
         const saveSuccess = await saveVehicleTypes(newTypes);
 
         if (saveSuccess) {
-            const typeName = newTypeInput.trim();
             setNewTypeInput('');
             setTypeError('');
             showNotification(`已成功新增車輛種類「${typeName}」`, 'success');
@@ -186,7 +214,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             if (!vehicleTypes.includes(vehicleType)) {
                 const newTypes = [...vehicleTypes, vehicleType];
                 setVehicleTypes(newTypes);
-                saveVehicleTypes(newTypes);
+                await saveVehicleTypes(newTypes);
             }
         } else if (!vehicleType) {
             setError('請選擇或輸入車輛種類');
@@ -209,7 +237,18 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
 
             // 更新本地狀態
             const newVehicleWithId = { id: newVehicleRef.key, ...newVehicle };
-            setVehicles([...vehicles, newVehicleWithId]);
+            const updatedVehicles = [...vehicles, newVehicleWithId];
+            setVehicles(updatedVehicles);
+
+            // 更新全局狀態，避免全頁重新載入
+            if (setData) {
+                const newData = JSON.parse(JSON.stringify(data));
+                if (!newData.companies[companyId].vehicles) {
+                    newData.companies[companyId].vehicles = {};
+                }
+                newData.companies[companyId].vehicles[newVehicleRef.key] = newVehicle;
+                setData(newData);
+            }
 
             // 清除表單
             setPlate('');
@@ -220,11 +259,14 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             setShowAddModal(false);
             setError('');
 
-            // 通知父元件
-            if (onSave) onSave();
+            showNotification('新增車輛成功！', 'success');
+
+            // 通知父元件，但不觸發全頁重新載入
+            if (onSave) onSave({ reload: false });
         } catch (error) {
             console.error('添加車輛時發生錯誤:', error);
             setError(`添加車輛時發生錯誤: ${error.message}`);
+            showNotification('添加車輛失敗！', 'error');
         }
     };
 
@@ -321,9 +363,12 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
 
             // 通知父元件
             if (onSave) onSave();
+
+            // 顯示成功通知
+            showNotification('車輛已成功刪除！');
         } catch (error) {
             console.error('刪除車輛時發生錯誤:', error);
-            alert(`刪除車輛時發生錯誤: ${error.message}`);
+            showNotification(`刪除車輛時發生錯誤: ${error.message}`, 'error');
         }
     };
 
@@ -364,33 +409,22 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
 
     return (
         <div className="vehicle-manager">
-            {/* 通知 Toast */}
-            <ToastContainer
-                position="bottom-end"
-                className="p-3 position-fixed"
-                style={{ zIndex: 1060 }}
+            {/* MUI Snackbar 通知 */}
+            <Snackbar
+                open={openSnackbar}
+                autoHideDuration={3000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             >
-                <Toast
-                    show={showToast}
-                    onClose={() => setShowToast(false)}
-                    delay={3000}
-                    autohide
-                    bg={toastType === 'success' ? 'success' : 'danger'}
-                    text="white"
+                <Alert
+                    onClose={handleCloseSnackbar}
+                    severity={snackbarSeverity}
+                    variant="filled"
+                    sx={{ width: '100%' }}
                 >
-                    <Toast.Header closeButton>
-                        {toastType === 'success' ? (
-                            <FaCheck className="me-2 text-success" />
-                        ) : (
-                            <FaTimes className="me-2 text-danger" />
-                        )}
-                        <strong className="me-auto">
-                            {toastType === 'success' ? '成功' : '錯誤'}
-                        </strong>
-                    </Toast.Header>
-                    <Toast.Body>{toastMessage}</Toast.Body>
-                </Toast>
-            </ToastContainer>
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
 
             <Row className="mb-3">
                 <Col xs={8}>

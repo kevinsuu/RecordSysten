@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { Button, Form, Row, Col, InputGroup } from 'react-bootstrap';
-import { ref, set } from 'firebase/database';
+import React, { useState, useEffect } from 'react';
+import { Button, Form, Row, Col, InputGroup, Card, ListGroup } from 'react-bootstrap';
+import { ref, set, get } from 'firebase/database';
 import DatePicker from 'react-datepicker';
-import { FaPlus, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaCalendarAlt, FaCheck } from 'react-icons/fa';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }) => {
     // 狀態管理
@@ -10,78 +13,252 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
     const [selectedVehicleId, setSelectedVehicleId] = useState(vehicleId || '');
     const [date, setDate] = useState(new Date());
     const [paymentType, setPaymentType] = useState('receivable'); // 應收廠商為預設值
-    const [serviceTitems, setServiceItems] = useState([{ name: '', price: 0 }]);
+    const [selectedItems, setSelectedItems] = useState([]); // 勾選的項目
+    const [customItems, setCustomItems] = useState([]); // 自訂項目
+    const [newCustomItem, setNewCustomItem] = useState({ name: '', price: '' }); // 新增的自訂項目
     const [remarks, setRemarks] = useState('');
     const [error, setError] = useState('');
+    const [washItems, setWashItems] = useState([]);
 
-    // 添加服務項目
-    const addServiceItem = () => {
-        setServiceItems([...serviceTitems, { name: '', price: 0 }]);
+    // 通知狀態
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success' // 'success', 'error', 'warning', 'info'
+    });
+
+    // 關閉通知
+    const handleCloseSnackbar = () => {
+        setSnackbar(prev => ({ ...prev, open: false }));
     };
 
-    // 刪除服務項目
-    const removeServiceItem = (index) => {
-        if (serviceTitems.length === 1) {
-            // 至少需要一個項目
-            return;
+    // 顯示通知
+    const showNotification = (message, variant = 'success') => {
+        // 將 Bootstrap 的 variant 轉換為 MUI 的 severity
+        const severity = variant === 'danger' ? 'error' : variant;
+        setSnackbar({
+            open: true,
+            message,
+            severity
+        });
+    };
+
+    // 自定義樣式
+    const styles = {
+        formLabel: {
+            fontWeight: "500",
+            marginBottom: "0.5rem"
+        },
+        formControl: {
+            borderRadius: "6px",
+            border: "1px solid #ced4da",
+            padding: "0.5rem 0.75rem",
+            transition: "border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out"
+        },
+        datePickerWrapper: {
+            position: "relative",
+            width: "100%"
+        },
+        datePickerIcon: {
+            position: "absolute",
+            right: "10px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            pointerEvents: "none",
+            color: "#6c757d"
+        },
+        cardSection: {
+            border: "1px solid #e9ecef",
+            borderRadius: "8px",
+            padding: "1rem",
+            marginBottom: "1.5rem",
+            backgroundColor: "#f8f9fa"
+        },
+        itemRow: {
+            padding: "0.5rem",
+            marginBottom: "0.5rem",
+            borderRadius: "6px",
+            backgroundColor: "white",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+        },
+        itemCheckbox: {
+            marginRight: "8px"
+        },
+        itemPrice: {
+            color: "#0d6efd",
+            fontWeight: "500"
+        },
+        totalAmount: {
+            fontSize: "1.2rem",
+            fontWeight: "bold",
+            color: "#0d6efd"
+        },
+        submitButton: {
+            padding: "0.5rem 1.5rem",
+            fontWeight: "500"
+        },
+        customItem: {
+            backgroundColor: "white",
+            padding: "0.75rem",
+            borderRadius: "6px",
+            marginBottom: "0.5rem",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+        }
+    };
+
+    // 載入洗車項目
+    useEffect(() => {
+        const loadWashItems = async () => {
+            try {
+                const washItemsRef = ref(database, 'wash_items');
+                const snapshot = await get(washItemsRef);
+                if (snapshot.exists()) {
+                    const items = snapshot.val() || [];
+                    setWashItems(items);
+                } else {
+                    setWashItems([]);
+                }
+            } catch (error) {
+                console.error('載入洗車項目時發生錯誤:', error);
+            }
+        };
+
+        loadWashItems();
+    }, [database]);
+
+    // 處理項目選擇
+    const handleItemToggle = (item, event) => {
+        // 阻止默認行為，避免表單提交或頁面重新載入
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
         }
 
-        const newItems = [...serviceTitems];
-        newItems.splice(index, 1);
-        setServiceItems(newItems);
+        // 檢查項目是否已被選中
+        const isSelected = selectedItems.some(selectedItem =>
+            typeof item === 'string'
+                ? selectedItem.name === item
+                : selectedItem.name === item.name
+        );
+
+        if (isSelected) {
+            // 如果已選中，則移除
+            setSelectedItems(selectedItems.filter(selectedItem =>
+                typeof item === 'string'
+                    ? selectedItem.name !== item
+                    : selectedItem.name !== item.name
+            ));
+        } else {
+            // 如果未選中，則添加
+            let newItem;
+            if (typeof item === 'string') {
+                newItem = { name: item, price: 0 };
+            } else {
+                newItem = { name: item.name, price: item.price };
+            }
+            setSelectedItems([...selectedItems, newItem]);
+        }
     };
 
-    // 更新服務項目
-    const updateServiceItem = (index, field, value) => {
-        const newItems = [...serviceTitems];
-        newItems[index] = { ...newItems[index], [field]: value };
-        setServiceItems(newItems);
+    // 添加自訂項目
+    const addCustomItem = (event) => {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        if (!newCustomItem.name.trim()) return;
+
+        const price = parseFloat(newCustomItem.price) || 0;
+        const customItem = {
+            name: newCustomItem.name.trim(),
+            price: price,
+            isCustom: true
+        };
+
+        setCustomItems([...customItems, customItem]);
+        setNewCustomItem({ name: '', price: '' });
+    };
+
+    // 刪除自訂項目
+    const removeCustomItem = (index) => {
+        const newCustomItems = [...customItems];
+        newCustomItems.splice(index, 1);
+        setCustomItems(newCustomItems);
+    };
+
+    // 格式化洗車項目顯示名稱
+    const formatWashItemName = (washItem) => {
+        if (typeof washItem === 'string') {
+            return washItem;
+        } else {
+            return washItem.name;
+        }
+    };
+
+    // 格式化洗車項目價格
+    const formatWashItemPrice = (washItem) => {
+        if (typeof washItem === 'string') {
+            return 0;
+        } else {
+            return washItem.price;
+        }
+    };
+
+    // 計算總金額
+    const calculateTotal = () => {
+        // 計算已選服務項目的總金額
+        const selectedItemsTotal = selectedItems.reduce((total, item) => {
+            return total + (parseFloat(item.price) || 0);
+        }, 0);
+
+        // 計算自訂項目的總金額
+        const customItemsTotal = customItems.reduce((total, item) => {
+            return total + (parseFloat(item.price) || 0);
+        }, 0);
+
+        return selectedItemsTotal + customItemsTotal;
     };
 
     // 儲存記錄
-    const saveRecord = async () => {
-        // 檢查必填欄位
+    const saveRecord = async (event) => {
+        event.preventDefault();
+
         if (!selectedCompanyId) {
             setError('請選擇公司');
+            showNotification('請選擇公司', 'danger');
             return;
         }
 
         if (!selectedVehicleId) {
             setError('請選擇車輛');
+            showNotification('請選擇車輛', 'danger');
             return;
         }
 
-        // 檢查服務項目
-        let hasEmptyItem = false;
-        serviceTitems.forEach(item => {
-            if (!item.name.trim()) {
-                hasEmptyItem = true;
-            }
-        });
-
-        if (hasEmptyItem) {
-            setError('請填寫所有服務項目名稱');
+        if (selectedItems.length === 0 && customItems.length === 0) {
+            setError('請至少選擇一個服務項目或添加校正項目');
+            showNotification('請至少選擇一個服務項目或添加校正項目', 'danger');
             return;
         }
+
+        setError('');
 
         try {
-            // 格式化日期
-            const dateStr = date.toISOString().split('T')[0];
+            // 準備新記錄數據
+            const dateString = date.toISOString().split('T')[0];
+            const allItems = [...selectedItems, ...customItems];
 
-            // 建立新記錄物件
+            // 獲取當前記錄
+            const records = data.companies[selectedCompanyId]?.vehicles[selectedVehicleId]?.records || [];
+
+            // 準備新記錄
             const newRecord = {
-                date: dateStr,
+                date: dateString,
                 payment_type: paymentType,
-                items: serviceTitems.map(item => ({
-                    name: item.name.trim(),
-                    price: parseFloat(item.price) || 0
-                })),
+                items: allItems,
                 remarks: remarks.trim()
             };
-
-            // 獲取當前車輛的記錄
-            const vehicleData = data.companies[selectedCompanyId].vehicles[selectedVehicleId];
-            const records = vehicleData.records || [];
 
             // 添加新記錄
             const updatedRecords = [...records, newRecord];
@@ -89,7 +266,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             // 更新 Firebase
             await set(ref(database, `companies/${selectedCompanyId}/vehicles/${selectedVehicleId}/records`), updatedRecords);
 
-            // 更新本地狀態
+            // 更新本地狀態 (重要：避免觸發頁面重新載入)
             const newData = { ...data };
             newData.companies[selectedCompanyId].vehicles[selectedVehicleId].records = updatedRecords;
             setData(newData);
@@ -97,207 +274,310 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             // 清除表單
             setDate(new Date());
             setPaymentType('receivable');
-            setServiceItems([{ name: '', price: 0 }]);
+            setSelectedItems([]);
+            setCustomItems([]);
+            setNewCustomItem({ name: '', price: '' });
             setRemarks('');
             setError('');
 
-            // 通知父元件
-            if (onSave) onSave();
+            // 處理父組件回調時顯示主畫面更新的記錄
+            if (onSave) {
+                // 特別移除 { reload: false } 參數，讓父組件使用預設行為
+                // 或者明確指示需要重新載入
+                onSave({ reload: true });
+            }
+
+            // 顯示通知
+            showNotification('記錄儲存成功', 'success');
         } catch (error) {
             console.error('新增記錄時發生錯誤:', error);
             setError(`新增記錄時發生錯誤: ${error.message}`);
+            showNotification(`新增記錄時發生錯誤: ${error.message}`, 'danger');
         }
     };
 
-    // 計算總金額
-    const calculateTotal = () => {
-        return serviceTitems.reduce((total, item) => {
-            return total + (parseFloat(item.price) || 0);
-        }, 0);
+    // 檢查項目是否已被選中
+    const isItemSelected = (item) => {
+        return selectedItems.some(selectedItem =>
+            typeof item === 'string'
+                ? selectedItem.name === item
+                : selectedItem.name === item.name
+        );
     };
 
     return (
         <div className="add-record-form">
-            <Form>
-                {/* 公司選擇 */}
-                <Form.Group as={Row} className="mb-3">
-                    <Form.Label column sm={3}>公司</Form.Label>
-                    <Col sm={9}>
-                        <Form.Select
-                            value={selectedCompanyId}
-                            onChange={(e) => {
-                                setSelectedCompanyId(e.target.value);
-                                setSelectedVehicleId(''); // 清除選擇的車輛
-                            }}
-                            isInvalid={error === '請選擇公司'}
-                        >
-                            <option value="">選擇公司</option>
-                            {Object.entries(data.companies || {})
-                                .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                .map(([id, company]) => (
-                                    <option key={id} value={id}>{company.name}</option>
-                                ))
-                            }
-                        </Form.Select>
-                        {error === '請選擇公司' && (
-                            <Form.Control.Feedback type="invalid">
-                                {error}
-                            </Form.Control.Feedback>
-                        )}
-                    </Col>
-                </Form.Group>
+            <Card className="border-0 shadow-sm">
+                <Card.Body className="p-3">
+                    <Form onSubmit={(e) => e.preventDefault()}>
+                        {/* 基本資訊區塊 */}
+                        <div style={styles.cardSection}>
+                            <h6 className="mb-3 text-muted">基本資訊</h6>
 
-                {/* 車輛選擇 */}
-                <Form.Group as={Row} className="mb-3">
-                    <Form.Label column sm={3}>車輛</Form.Label>
-                    <Col sm={9}>
-                        <Form.Select
-                            value={selectedVehicleId}
-                            onChange={(e) => setSelectedVehicleId(e.target.value)}
-                            isInvalid={error === '請選擇車輛'}
-                            disabled={!selectedCompanyId}
-                        >
-                            <option value="">選擇車輛</option>
-                            {selectedCompanyId && Object.entries(data.companies[selectedCompanyId]?.vehicles || {})
-                                .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                .map(([id, vehicle]) => (
-                                    <option key={id} value={id}>
-                                        {vehicle.plate} ({vehicle.type})
-                                    </option>
-                                ))
-                            }
-                        </Form.Select>
-                        {error === '請選擇車輛' && (
-                            <Form.Control.Feedback type="invalid">
-                                {error}
-                            </Form.Control.Feedback>
-                        )}
-                    </Col>
-                </Form.Group>
-
-                {/* 日期選擇 */}
-                <Form.Group as={Row} className="mb-3">
-                    <Form.Label column sm={3}>日期</Form.Label>
-                    <Col sm={9}>
-                        <DatePicker
-                            selected={date}
-                            onChange={date => setDate(date)}
-                            className="form-control"
-                            dateFormat="yyyy-MM-dd"
-                        />
-                    </Col>
-                </Form.Group>
-
-                {/* 應付/應收選擇 */}
-                <Form.Group as={Row} className="mb-3">
-                    <Form.Label column sm={3}>類型</Form.Label>
-                    <Col sm={9}>
-                        <div className="d-flex">
-                            <Form.Check
-                                type="radio"
-                                label="應收廠商"
-                                name="paymentType"
-                                id="receivable"
-                                checked={paymentType === 'receivable'}
-                                onChange={() => setPaymentType('receivable')}
-                                className="me-3"
-                            />
-                            <Form.Check
-                                type="radio"
-                                label="應付廠商"
-                                name="paymentType"
-                                id="payable"
-                                checked={paymentType === 'payable'}
-                                onChange={() => setPaymentType('payable')}
-                            />
-                        </div>
-                    </Col>
-                </Form.Group>
-
-                {/* 服務項目 */}
-                <Form.Group className="mb-3">
-                    <Form.Label>服務項目</Form.Label>
-                    {serviceTitems.map((item, index) => (
-                        <Row key={index} className="mb-2 align-items-center">
-                            <Col xs={6}>
-                                <Form.Control
-                                    placeholder="項目名稱"
-                                    value={item.name}
-                                    onChange={(e) => updateServiceItem(index, 'name', e.target.value)}
-                                    isInvalid={error === '請填寫所有服務項目名稱' && !item.name.trim()}
-                                />
-                                {error === '請填寫所有服務項目名稱' && !item.name.trim() && (
+                            {/* 公司選擇 */}
+                            <Form.Group className="mb-3">
+                                <Form.Label style={styles.formLabel}>公司</Form.Label>
+                                <Form.Select
+                                    style={styles.formControl}
+                                    value={selectedCompanyId}
+                                    onChange={(e) => {
+                                        setSelectedCompanyId(e.target.value);
+                                        setSelectedVehicleId(''); // 清除選擇的車輛
+                                    }}
+                                    isInvalid={error === '請選擇公司'}
+                                >
+                                    <option value="">選擇公司</option>
+                                    {Object.entries(data.companies || {})
+                                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                                        .map(([id, company]) => (
+                                            <option key={id} value={id}>{company.name}</option>
+                                        ))
+                                    }
+                                </Form.Select>
+                                {error === '請選擇公司' && (
                                     <Form.Control.Feedback type="invalid">
-                                        請填寫項目名稱
+                                        {error}
                                     </Form.Control.Feedback>
                                 )}
-                            </Col>
-                            <Col xs={4}>
-                                <InputGroup>
-                                    <InputGroup.Text>$</InputGroup.Text>
-                                    <Form.Control
-                                        type="number"
-                                        placeholder="0"
-                                        value={item.price}
-                                        onChange={(e) => updateServiceItem(index, 'price', e.target.value)}
-                                    />
-                                </InputGroup>
-                            </Col>
-                            <Col xs={2}>
-                                <Button
-                                    variant="outline-danger"
-                                    onClick={() => removeServiceItem(index)}
-                                    disabled={serviceTitems.length === 1}
+                            </Form.Group>
+
+                            {/* 車輛選擇 */}
+                            <Form.Group className="mb-3">
+                                <Form.Label style={styles.formLabel}>車輛</Form.Label>
+                                <Form.Select
+                                    style={styles.formControl}
+                                    value={selectedVehicleId}
+                                    onChange={(e) => setSelectedVehicleId(e.target.value)}
+                                    isInvalid={error === '請選擇車輛'}
+                                    disabled={!selectedCompanyId}
                                 >
-                                    <FaTrash />
-                                </Button>
-                            </Col>
-                        </Row>
-                    ))}
+                                    <option value="">選擇車輛</option>
+                                    {selectedCompanyId && Object.entries(data.companies[selectedCompanyId]?.vehicles || {})
+                                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+                                        .map(([id, vehicle]) => (
+                                            <option key={id} value={id}>
+                                                {vehicle.plate} ({vehicle.type})
+                                            </option>
+                                        ))
+                                    }
+                                </Form.Select>
+                                {error === '請選擇車輛' && (
+                                    <Form.Control.Feedback type="invalid">
+                                        {error}
+                                    </Form.Control.Feedback>
+                                )}
+                            </Form.Group>
 
-                    <div className="mt-2">
-                        <Button variant="outline-primary" onClick={addServiceItem}>
-                            <FaPlus className="me-1" /> 添加項目
-                        </Button>
-                    </div>
-                </Form.Group>
+                            {/* 日期選擇 */}
+                            <Form.Group className="mb-3">
+                                <Form.Label style={styles.formLabel}>日期</Form.Label>
+                                <div style={styles.datePickerWrapper}>
+                                    <DatePicker
+                                        selected={date}
+                                        onChange={date => setDate(date)}
+                                        className="form-control"
+                                        dateFormat="yyyy-MM-dd"
+                                        style={styles.formControl}
+                                    />
+                                    <FaCalendarAlt style={styles.datePickerIcon} />
+                                </div>
+                            </Form.Group>
 
-                {/* 總金額顯示 */}
-                <Form.Group as={Row} className="mb-3">
-                    <Form.Label column sm={3}>金額總計</Form.Label>
-                    <Col sm={9}>
-                        <Form.Control
-                            plaintext
-                            readOnly
-                            value={`$${calculateTotal().toLocaleString()}`}
-                            className="fw-bold"
-                        />
-                    </Col>
-                </Form.Group>
+                            {/* 應付/應收選擇 */}
+                            <Form.Group className="mb-0">
+                                <Form.Label style={styles.formLabel}>類型</Form.Label>
+                                <div className="d-flex">
+                                    <Form.Check
+                                        type="radio"
+                                        label="應收廠商"
+                                        name="paymentType"
+                                        id="receivable"
+                                        checked={paymentType === 'receivable'}
+                                        onChange={() => setPaymentType('receivable')}
+                                        className="me-4"
+                                    />
+                                    <Form.Check
+                                        type="radio"
+                                        label="應付廠商"
+                                        name="paymentType"
+                                        id="payable"
+                                        checked={paymentType === 'payable'}
+                                        onChange={() => setPaymentType('payable')}
+                                    />
+                                </div>
+                            </Form.Group>
+                        </div>
 
-                {/* 備註 */}
-                <Form.Group className="mb-3">
-                    <Form.Label>備註（選填）</Form.Label>
-                    <Form.Control
-                        as="textarea"
-                        rows={3}
-                        value={remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                    />
-                </Form.Group>
+                        {/* 服務項目區塊 */}
+                        <div style={styles.cardSection}>
+                            <h6 className="mb-3 text-muted">服務項目</h6>
 
-                {/* 錯誤信息顯示 */}
-                {error && error !== '請選擇公司' && error !== '請選擇車輛' && error !== '請填寫所有服務項目名稱' && (
-                    <div className="alert alert-danger mb-3">{error}</div>
-                )}
+                            {/* 顯示全部洗車項目供勾選 */}
+                            {washItems.length > 0 ? (
+                                <div className="mb-3">
+                                    <ListGroup>
+                                        {washItems.map((item, index) => (
+                                            <ListGroup.Item
+                                                key={index}
+                                                action={false}
+                                                onClick={(event) => handleItemToggle(item, event)}
+                                                onMouseDown={(event) => event.preventDefault()}
+                                                active={isItemSelected(item)}
+                                                className="d-flex justify-content-between align-items-center py-2"
+                                                style={{
+                                                    backgroundColor: isItemSelected(item) ? '#e6f2ff' : 'white',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <div className="d-flex align-items-center">
+                                                    <div className="me-2" style={{ width: '20px', height: '20px' }}>
+                                                        {isItemSelected(item) && <FaCheck color="#0d6efd" />}
+                                                    </div>
+                                                    <span>{formatWashItemName(item)}</span>
+                                                </div>
+                                                <span style={styles.itemPrice}>${formatWashItemPrice(item)}</span>
+                                            </ListGroup.Item>
+                                        ))}
+                                    </ListGroup>
+                                </div>
+                            ) : (
+                                <p className="text-muted">沒有可用的洗車項目</p>
+                            )}
 
-                {/* 提交按鈕 */}
-                <div className="d-flex justify-content-end">
-                    <Button variant="primary" onClick={saveRecord}>
-                        儲存紀錄
-                    </Button>
-                </div>
-            </Form>
+                            {/* 自訂項目區塊 */}
+                            <div className="mt-4">
+                                <h6 className="mb-3 text-muted">校正項目</h6>
+
+                                {/* 顯示已添加的自訂項目 */}
+                                {customItems.length > 0 && (
+                                    <div className="mb-3">
+                                        {customItems.map((item, index) => (
+                                            <div key={index} style={styles.customItem} className="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <div className="fw-bold">{item.name}</div>
+                                                    <div className="text-primary">${item.price}</div>
+                                                </div>
+                                                <Button
+                                                    variant="outline-danger"
+                                                    size="sm"
+                                                    onClick={() => removeCustomItem(index)}
+                                                    className="rounded-circle p-0"
+                                                    style={{ width: '32px', height: '32px' }}
+                                                >
+                                                    <FaTrash size={14} />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* 添加新自訂項目的表單 */}
+                                <div style={styles.customItem}>
+                                    <Row className="align-items-end g-2">
+                                        <Col xs={12} sm={5}>
+                                            <Form.Group>
+                                                <Form.Label style={{ fontSize: '0.875rem' }}>項目名稱</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    placeholder="輸入名稱"
+                                                    value={newCustomItem.name}
+                                                    onChange={(e) => setNewCustomItem({ ...newCustomItem, name: e.target.value })}
+                                                    size="sm"
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col xs={7} sm={4}>
+                                            <Form.Group>
+                                                <Form.Label style={{ fontSize: '0.875rem' }}>金額</Form.Label>
+                                                <InputGroup size="sm">
+                                                    <InputGroup.Text>$</InputGroup.Text>
+                                                    <Form.Control
+                                                        type="number"
+                                                        placeholder="0"
+                                                        value={newCustomItem.price}
+                                                        onChange={(e) => setNewCustomItem({ ...newCustomItem, price: e.target.value })}
+                                                    />
+                                                </InputGroup>
+                                            </Form.Group>
+                                        </Col>
+                                        <Col xs={5} sm={3}>
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                onClick={(event) => addCustomItem(event)}
+                                                className="w-100"
+                                                disabled={!newCustomItem.name.trim()}
+                                                type="button"
+                                            >
+                                                <FaPlus className="me-1" /> 添加
+                                            </Button>
+                                        </Col>
+                                    </Row>
+                                </div>
+                            </div>
+
+                            {/* 金額總計 */}
+                            <div className="mt-4 d-flex justify-content-between align-items-center p-2 bg-white rounded">
+                                <h6 className="mb-0">金額總計</h6>
+                                <span style={styles.totalAmount}>${calculateTotal().toLocaleString()}</span>
+                            </div>
+
+                            {/* 錯誤提示 */}
+                            {error === '請至少選擇一個服務項目或添加自訂項目' && (
+                                <div className="alert alert-danger mt-2 mb-0 py-2">{error}</div>
+                            )}
+                        </div>
+
+                        {/* 備註 */}
+                        <Form.Group className="mb-4">
+                            <Form.Label style={styles.formLabel}>備註（選填）</Form.Label>
+                            <Form.Control
+                                as="textarea"
+                                rows={2}
+                                value={remarks}
+                                onChange={(e) => setRemarks(e.target.value)}
+                                style={styles.formControl}
+                                placeholder="請輸入備註內容..."
+                            />
+                        </Form.Group>
+
+                        {/* 錯誤信息顯示 */}
+                        {error && error !== '請選擇公司' && error !== '請選擇車輛' && error !== '請至少選擇一個服務項目或添加自訂項目' && (
+                            <div className="alert alert-danger mb-3 py-2">{error}</div>
+                        )}
+
+                        {/* 提交按鈕 */}
+                        <div className="d-grid">
+                            <Button
+                                variant="primary"
+                                onClick={(event) => saveRecord(event)}
+                                style={styles.submitButton}
+                                size="lg"
+                                type="button"
+                            >
+                                儲存紀錄
+                            </Button>
+                        </div>
+                    </Form>
+                </Card.Body>
+            </Card>
+
+            {/* MUI 通知元件 */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={handleCloseSnackbar}
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                    variant="filled"
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </div>
     );
 };

@@ -37,7 +37,7 @@ const Login = ({ accessDenied }) => {
 
                 // 檢查登入的 email 是否為指定帳號
                 const email = result.user.email;
-                if (email !== 'sjs47311@gmail.com') {
+                if (email !== process.env.REACT_APP_LOGIN_ACCOUNT1 && email !== process.env.REACT_APP_LOGIN_ACCOUNT2) {
                     // 如果不是允許的電子郵件，則登出並顯示錯誤
                     await auth.signOut();
                     throw new Error('此 Google 帳號沒有權限訪問系統。');

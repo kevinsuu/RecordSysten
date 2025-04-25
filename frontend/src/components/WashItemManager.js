@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Row, Col, ListGroup, Modal } from 'react-bootstrap';
 import { ref, set, get } from 'firebase/database';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 
 const WashItemManager = ({ database, onSave }) => {
     const [washItems, setWashItems] = useState([]);
@@ -11,6 +13,27 @@ const WashItemManager = ({ database, onSave }) => {
     const [selectedItemIndex, setSelectedItemIndex] = useState(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
+
+    // 添加通知狀態
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success' // 'success', 'error', 'warning', 'info'
+    });
+
+    // 處理關閉通知
+    const handleCloseSnackbar = () => {
+        setSnackbar(prev => ({ ...prev, open: false }));
+    };
+
+    // 顯示通知的輔助函數
+    const showNotification = (message, severity = 'success') => {
+        setSnackbar({
+            open: true,
+            message,
+            severity
+        });
+    };
 
     // 載入洗車項目
     useEffect(() => {
@@ -66,8 +89,11 @@ const WashItemManager = ({ database, onSave }) => {
             setShowAddModal(false);
             setError('');
 
+            // 顯示成功通知
+            showNotification('洗車項目已成功新增！');
+
             // 通知父元件
-            if (onSave) onSave();
+            if (onSave) onSave({ reload: false });
         } catch (error) {
             console.error('添加洗車項目時發生錯誤:', error);
             setError('添加洗車項目時發生錯誤: ' + error.message);
@@ -108,8 +134,11 @@ const WashItemManager = ({ database, onSave }) => {
             setShowEditModal(false);
             setError('');
 
+            // 顯示成功通知
+            showNotification('洗車項目已成功編輯！');
+
             // 通知父元件
-            if (onSave) onSave();
+            if (onSave) onSave({ reload: false });
         } catch (error) {
             console.error('編輯洗車項目時發生錯誤:', error);
             setError('編輯洗車項目時發生錯誤: ' + error.message);
@@ -131,11 +160,14 @@ const WashItemManager = ({ database, onSave }) => {
             // 更新 Firebase
             await set(ref(database, 'wash_items'), newWashItems);
 
+            // 顯示成功通知
+            showNotification('洗車項目已成功刪除！');
+
             // 通知父元件
-            if (onSave) onSave();
+            if (onSave) onSave({ reload: false });
         } catch (error) {
             console.error('刪除洗車項目時發生錯誤:', error);
-            alert('刪除洗車項目時發生錯誤: ' + error.message);
+            showNotification('刪除洗車項目時發生錯誤: ' + error.message, 'error');
         }
     };
 
@@ -305,6 +337,23 @@ const WashItemManager = ({ database, onSave }) => {
                     </Button>
                 </Modal.Footer>
             </Modal>
+
+            {/* 通知組件 */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={5000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={handleCloseSnackbar}
+                    severity={snackbar.severity}
+                    variant="filled"
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </div>
     );
 };

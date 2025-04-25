@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button, Form, Row, Col, Modal, ListGroup } from 'react-bootstrap';
 import { ref, set, push, remove } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 
 // 需要安裝 react-beautiful-dnd: npm install react-beautiful-dnd
 
@@ -19,6 +21,48 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
     const [error, setError] = useState('');
+
+    // 通知相關狀態
+    const [openSnackbar, setOpenSnackbar] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+
+    // 顯示通知函數
+    const showNotification = (message, severity = 'success') => {
+        setSnackbarMessage(message);
+        setSnackbarSeverity(severity);
+        setOpenSnackbar(true);
+    };
+
+    // 關閉通知
+    const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setOpenSnackbar(false);
+    };
+
+    // 更新全局資料但不觸發全頁重新載入
+    const updateGlobalData = useCallback((newCompanies) => {
+        if (setData) {
+            // 深拷貝當前資料
+            const newData = JSON.parse(JSON.stringify(data));
+
+            // 轉換公司列表為對象格式
+            const companiesObj = {};
+            newCompanies.forEach(company => {
+                if (company.id) {
+                    // 排除 id 屬性，因為它已經作為鍵使用
+                    const { id, ...companyData } = company;
+                    companiesObj[id] = companyData;
+                }
+            });
+
+            // 更新公司數據
+            newData.companies = companiesObj;
+            setData(newData);
+        }
+    }, [data, setData]);
 
     // 添加公司
     const addCompany = async () => {
@@ -44,7 +88,11 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
 
             // 更新本地狀態
             const newCompanyWithId = { id: newCompanyRef.key, ...newCompany };
-            setCompanies([...companies, newCompanyWithId]);
+            const updatedCompanies = [...companies, newCompanyWithId];
+            setCompanies(updatedCompanies);
+
+            // 更新全局狀態，避免全頁重新載入
+            updateGlobalData(updatedCompanies);
 
             // 清除表單
             setCompanyName('');
@@ -54,11 +102,15 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             setShowAddModal(false);
             setError('');
 
-            // 通知父元件
-            if (onSave) onSave();
+            // 顯示成功通知
+            showNotification('新增公司成功！', 'success');
+
+            // 通知父元件，但不觸發重新載入
+            if (onSave) onSave({ reload: false });
         } catch (error) {
             console.error('添加公司時發生錯誤:', error);
             setError(`添加公司時發生錯誤: ${error.message}`);
+            showNotification('添加公司失敗！', 'error');
         }
     };
 
@@ -95,6 +147,9 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             );
             setCompanies(newCompanies);
 
+            // 更新全局狀態，避免全頁重新載入
+            updateGlobalData(newCompanies);
+
             // 清除表單
             setCompanyName('');
             setTaxId('');
@@ -104,11 +159,15 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
             setShowEditModal(false);
             setError('');
 
-            // 通知父元件
-            if (onSave) onSave();
+            // 顯示成功通知
+            showNotification('更新公司成功！', 'success');
+
+            // 通知父元件，但不觸發重新載入
+            if (onSave) onSave({ reload: false });
         } catch (error) {
             console.error('編輯公司時發生錯誤:', error);
             setError(`編輯公司時發生錯誤: ${error.message}`);
+            showNotification('編輯公司失敗！', 'error');
         }
     };
 
@@ -138,11 +197,17 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
 
             setCompanies(reorderedCompanies);
 
-            // 通知父元件
-            if (onSave) onSave();
+            // 更新全局狀態，避免全頁重新載入
+            updateGlobalData(reorderedCompanies);
+
+            // 顯示成功通知
+            showNotification(`成功刪除「${company.name}」公司`, 'success');
+
+            // 通知父元件，但不觸發重新載入
+            if (onSave) onSave({ reload: false });
         } catch (error) {
             console.error('刪除公司時發生錯誤:', error);
-            alert(`刪除公司時發生錯誤: ${error.message}`);
+            showNotification(`刪除公司時發生錯誤: ${error.message}`, 'error');
         }
     };
 
@@ -162,13 +227,16 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
         // 更新本地狀態
         setCompanies(reorderedCompanies);
 
+        // 更新全局狀態，避免全頁重新載入
+        updateGlobalData(reorderedCompanies);
+
         // 更新排序索引到 Firebase
         reorderedCompanies.forEach(async (company) => {
             await set(ref(database, `companies/${company.id}/sort_index`), company.sort_index);
         });
 
-        // 通知父元件
-        if (onSave) onSave();
+        // 通知父元件，但不觸發重新載入
+        if (onSave) onSave({ reload: false });
     };
 
     // 清除表單
@@ -182,6 +250,23 @@ const CompanyManager = ({ data, setData, database, onSave }) => {
 
     return (
         <div className="company-manager">
+            {/* MUI Snackbar 通知 */}
+            <Snackbar
+                open={openSnackbar}
+                autoHideDuration={3000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            >
+                <Alert
+                    onClose={handleCloseSnackbar}
+                    severity={snackbarSeverity}
+                    variant="filled"
+                    sx={{ width: '100%' }}
+                >
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
+
             <Row className="mb-3">
                 <Col>
                     <Button

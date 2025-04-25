@@ -3,6 +3,8 @@ import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav } from 're
 import DatePicker from 'react-datepicker';
 import { FaCog, FaFileExcel, FaSignOutAlt, FaShower } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import CompanyManager from '../components/CompanyManager';
 import VehicleManager from '../components/VehicleManager';
 import AddRecordForm from '../components/AddRecordForm';
@@ -33,6 +35,13 @@ function Home() {
     const [showAddRecord, setShowAddRecord] = useState(false);
     const [showWashItemManager, setShowWashItemManager] = useState(false);
 
+    // 添加通知狀態
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success' // 'success', 'error', 'warning', 'info'
+    });
+
     // 處理登出
     const handleLogout = async () => {
         try {
@@ -40,7 +49,7 @@ function Home() {
             await signOut(auth);
         } catch (error) {
             console.error('登出失敗:', error);
-            alert('登出失敗: ' + error.message);
+            showNotification('登出失敗: ' + error.message, 'error');
         }
     };
 
@@ -84,7 +93,10 @@ function Home() {
     }, []);
 
     // 載入資料
-    const loadData = useCallback(async () => {
+    const loadData = useCallback(async (options = {}) => {
+        // 如果指定不重新載入，就直接返回
+        if (options.reload === false) return;
+
         setIsLoading(true);
         setError(null);
         try {
@@ -98,6 +110,21 @@ function Home() {
             setIsLoading(false);
         }
     }, [processRecords]);
+
+    // 當其他元件儲存資料後的處理函數
+    const onSave = useCallback((options = {}) => {
+        // 如果指定不重新載入，就直接返回
+        if (options.reload === false) {
+            return;
+        }
+
+        // 否則重新載入資料並關閉所有模態視窗
+        loadData();
+        setShowCompanyManager(false);
+        setShowVehicleManager(false);
+        setShowAddRecord(false);
+        setShowWashItemManager(false);
+    }, [loadData]);
 
     // 過濾記錄
     const filterRecords = useCallback(() => {
@@ -209,10 +236,10 @@ function Home() {
             setData(newData);
             processRecords(newData);
 
-            alert('記錄已成功刪除！');
+            showNotification('記錄已成功刪除！');
         } catch (error) {
             console.error('刪除記錄時發生錯誤:', error);
-            alert(`刪除記錄時發生錯誤: ${error.message}`);
+            showNotification(`刪除記錄時發生錯誤: ${error.message}`, 'error');
         }
     };
 
@@ -274,10 +301,10 @@ function Home() {
             // 匯出檔案
             writeFile(workbook, fileName);
 
-            alert('資料已成功匯出！');
+            showNotification('資料已成功匯出！');
         } catch (error) {
             console.error('匯出資料時發生錯誤:', error);
-            alert(`匯出資料時發生錯誤: ${error.message}`);
+            showNotification(`匯出資料時發生錯誤: ${error.message}`, 'error');
         }
     };
 
@@ -307,6 +334,20 @@ function Home() {
             case 'receivable': return '應收廠商';
             default: return '';
         }
+    };
+
+    // 處理關閉通知
+    const handleCloseSnackbar = () => {
+        setSnackbar(prev => ({ ...prev, open: false }));
+    };
+
+    // 顯示通知的輔助函數
+    const showNotification = (message, severity = 'success') => {
+        setSnackbar({
+            open: true,
+            message,
+            severity
+        });
     };
 
     return (
@@ -409,7 +450,7 @@ function Home() {
                                                 title="管理車輛"
                                                 onClick={() => {
                                                     if (selectedCompany === 'all') {
-                                                        alert('請先選擇一個公司');
+                                                        showNotification('請先選擇一個公司', 'warning');
                                                         return;
                                                     }
                                                     setShowVehicleManager(true);
@@ -544,7 +585,7 @@ function Home() {
                                             title="管理車輛"
                                             onClick={() => {
                                                 if (selectedCompany === 'all') {
-                                                    alert('請先選擇一個公司');
+                                                    showNotification('請先選擇一個公司', 'warning');
                                                     return;
                                                 }
                                                 setShowVehicleManager(true);
@@ -688,7 +729,7 @@ function Home() {
                                     data={data}
                                     setData={setData}
                                     database={database}
-                                    onSave={loadData}
+                                    onSave={onSave}
                                 />
                             </Modal.Body>
                         </Modal>
@@ -709,7 +750,7 @@ function Home() {
                                     companyId={selectedCompany}
                                     setData={setData}
                                     database={database}
-                                    onSave={loadData}
+                                    onSave={onSave}
                                 />
                             </Modal.Body>
                         </Modal>
@@ -731,8 +772,8 @@ function Home() {
                                     database={database}
                                     companyId={selectedCompany !== 'all' ? selectedCompany : ''}
                                     vehicleId={selectedVehicle !== 'all' ? selectedVehicle : ''}
-                                    onSave={() => {
-                                        loadData();
+                                    onSave={(options) => {
+                                        onSave(options);
                                         setShowAddRecord(false);
                                     }}
                                 />
@@ -752,13 +793,30 @@ function Home() {
                             <Modal.Body>
                                 <WashItemManager
                                     database={database}
-                                    onSave={loadData}
+                                    onSave={onSave}
                                 />
                             </Modal.Body>
                         </Modal>
                     </>
                 )}
             </Container>
+
+            {/* 通知組件 */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={5000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={handleCloseSnackbar}
+                    severity={snackbar.severity}
+                    variant="filled"
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </>
     );
 }

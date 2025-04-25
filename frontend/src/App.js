@@ -15,7 +15,7 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         // 檢查是否是允許的電子郵件
-        if (currentUser.email === 'sjs47311@gmail.com') {
+        if (currentUser.email === process.env.REACT_APP_LOGIN_ACCOUNT1 || currentUser.email === process.env.REACT_APP_LOGIN_ACCOUNT2) {
           setUser(currentUser);
           setAccessDenied(false);
         } else {
