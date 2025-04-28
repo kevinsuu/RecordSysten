@@ -319,7 +319,8 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                 reload: false,
                 newRecord: formattedRecord,
                 updatedData: newData,
-                source: 'AddRecordForm'
+                source: 'AddRecordForm',
+                shouldClearSearch: true
             });
 
             showNotification('記錄已成功儲存', 'success');

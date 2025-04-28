@@ -170,6 +170,11 @@ function Home() {
     const onSave = (options = {}) => {
         // 如果傳入reload為false，則避免重新載入
         if (options.reload === false) {
+            // 如果需要清除搜尋
+            if (options.shouldClearSearch) {
+                clearSearch();
+            }
+
             // 如果有新記錄資料，直接更新本地狀態
             if (options.newRecord) {
                 // 標記新添加的記錄ID
@@ -180,6 +185,25 @@ function Home() {
                     setTimeout(() => {
                         setRecentlyAddedId(null);
                     }, 3000);
+
+                    // 如果是手機版，滾動到卡片視圖位置
+                    if (isMobile) {
+                        // 使用 setTimeout 確保在 DOM 更新後再滾動
+                        setTimeout(() => {
+                            // 找到卡片視圖容器
+                            const cardViewContainer = document.querySelector('.card-view-container');
+                            if (cardViewContainer) {
+                                // 計算滾動位置，考慮導航欄的高度
+                                const navbarHeight = document.querySelector('.navbar')?.offsetHeight || 0;
+                                const containerTop = cardViewContainer.offsetTop;
+
+                                window.scrollTo({
+                                    top: containerTop - navbarHeight - 10, // 減去導航欄高度並留些空間
+                                    behavior: 'smooth'
+                                });
+                            }
+                        }, 100);
+                    }
                 }
 
                 // 添加新記錄，並確保按時間戳降序排序
