@@ -5,7 +5,26 @@ import DatePicker from 'react-datepicker';
 import { FaPlus, FaTrash, FaCalendarAlt, FaCheck } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import Select from 'react-select';
 import 'react-datepicker/dist/react-datepicker.css';
+
+// 格式化洗車項目顯示名稱
+const formatWashItemName = (washItem) => {
+    if (typeof washItem === 'string') {
+        return washItem;
+    } else {
+        return washItem.name;
+    }
+};
+
+// 格式化洗車項目價格
+const formatWashItemPrice = (washItem) => {
+    if (typeof washItem === 'string') {
+        return 0;
+    } else {
+        return washItem.price;
+    }
+};
 
 const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }) => {
     // 狀態管理
@@ -127,38 +146,54 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
         loadWashItems();
     }, [database]);
 
-    // 處理項目選擇
-    const handleItemToggle = (item, event) => {
-        // 阻止默認行為，避免表單提交或頁面重新載入
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
+    // 轉換公司數據為 react-select 格式
+    const companyOptions = Object.entries(data.companies || {})
+        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+        .map(([id, company]) => ({
+            value: id,
+            label: company.name
+        }));
 
-        // 檢查項目是否已被選中
-        const isSelected = selectedItems.some(selectedItem =>
-            typeof item === 'string'
-                ? selectedItem.name === item
-                : selectedItem.name === item.name
-        );
+    // 轉換車輛數據為 react-select 格式
+    const vehicleOptions = selectedCompanyId
+        ? Object.entries(data.companies[selectedCompanyId]?.vehicles || {})
+            .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
+            .map(([id, vehicle]) => ({
+                value: id,
+                label: `${vehicle.plate} (${vehicle.type})`
+            }))
+        : [];
 
-        if (isSelected) {
-            // 如果已選中，則移除
-            setSelectedItems(selectedItems.filter(selectedItem =>
-                typeof item === 'string'
-                    ? selectedItem.name !== item
-                    : selectedItem.name !== item.name
-            ));
-        } else {
-            // 如果未選中，則添加
-            let newItem;
-            if (typeof item === 'string') {
-                newItem = { name: item, price: 0 };
-            } else {
-                newItem = { name: item.name, price: item.price };
+    // 轉換服務項目為 react-select 格式
+    const washItemOptions = washItems.map((item, index) => ({
+        value: index,
+        label: `${formatWashItemName(item)} - $${formatWashItemPrice(item)}`,
+        item: item
+    }));
+
+    // 自定義 Select 樣式
+    const selectStyles = {
+        control: (base, state) => ({
+            ...base,
+            borderColor: '#ced4da',
+            boxShadow: state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
+            '&:hover': {
+                borderColor: '#ced4da'
             }
-            setSelectedItems([...selectedItems, newItem]);
-        }
+        }),
+        option: (base, state) => ({
+            ...base,
+            backgroundColor: state.isSelected ? '#0d6efd' : state.isFocused ? '#e9ecef' : 'white',
+            ':active': {
+                backgroundColor: state.isSelected ? '#0d6efd' : '#e9ecef'
+            }
+        })
+    };
+
+    // 處理服務項目多選
+    const handleWashItemsChange = (selectedOptions) => {
+        const newSelectedItems = selectedOptions.map(option => option.item);
+        setSelectedItems(newSelectedItems);
     };
 
     // 添加自訂項目
@@ -186,24 +221,6 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
         const newCustomItems = [...customItems];
         newCustomItems.splice(index, 1);
         setCustomItems(newCustomItems);
-    };
-
-    // 格式化洗車項目顯示名稱
-    const formatWashItemName = (washItem) => {
-        if (typeof washItem === 'string') {
-            return washItem;
-        } else {
-            return washItem.name;
-        }
-    };
-
-    // 格式化洗車項目價格
-    const formatWashItemPrice = (washItem) => {
-        if (typeof washItem === 'string') {
-            return 0;
-        } else {
-            return washItem.price;
-        }
     };
 
     // 計算總金額
@@ -336,54 +353,44 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                             {/* 公司選擇 */}
                             <Form.Group className="mb-3">
                                 <Form.Label style={styles.formLabel}>公司</Form.Label>
-                                <Form.Select
-                                    style={styles.formControl}
-                                    value={selectedCompanyId}
-                                    onChange={(e) => {
-                                        setSelectedCompanyId(e.target.value);
-                                        setSelectedVehicleId(''); // 清除選擇的車輛
+                                <Select
+                                    options={companyOptions}
+                                    value={companyOptions.find(option => option.value === selectedCompanyId)}
+                                    onChange={(option) => {
+                                        setSelectedCompanyId(option?.value || '');
+                                        setSelectedVehicleId('');
                                     }}
-                                    isInvalid={error === '請選擇公司'}
-                                >
-                                    <option value="">選擇公司</option>
-                                    {Object.entries(data.companies || {})
-                                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                        .map(([id, company]) => (
-                                            <option key={id} value={id}>{company.name}</option>
-                                        ))
-                                    }
-                                </Form.Select>
+                                    isClearable
+                                    isSearchable
+                                    placeholder="選擇或搜尋公司..."
+                                    noOptionsMessage={() => "找不到符合的公司"}
+                                    styles={selectStyles}
+                                />
                                 {error === '請選擇公司' && (
-                                    <Form.Control.Feedback type="invalid">
+                                    <div className="text-danger mt-1" style={{ fontSize: '0.875rem' }}>
                                         {error}
-                                    </Form.Control.Feedback>
+                                    </div>
                                 )}
                             </Form.Group>
 
                             {/* 車輛選擇 */}
                             <Form.Group className="mb-3">
                                 <Form.Label style={styles.formLabel}>車輛</Form.Label>
-                                <Form.Select
-                                    style={styles.formControl}
-                                    value={selectedVehicleId}
-                                    onChange={(e) => setSelectedVehicleId(e.target.value)}
-                                    isInvalid={error === '請選擇車輛'}
-                                    disabled={!selectedCompanyId}
-                                >
-                                    <option value="">選擇車輛</option>
-                                    {selectedCompanyId && Object.entries(data.companies[selectedCompanyId]?.vehicles || {})
-                                        .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
-                                        .map(([id, vehicle]) => (
-                                            <option key={id} value={id}>
-                                                {vehicle.plate} ({vehicle.type})
-                                            </option>
-                                        ))
-                                    }
-                                </Form.Select>
+                                <Select
+                                    options={vehicleOptions}
+                                    value={vehicleOptions.find(option => option.value === selectedVehicleId)}
+                                    onChange={(option) => setSelectedVehicleId(option?.value || '')}
+                                    isClearable
+                                    isSearchable
+                                    placeholder="選擇或搜尋車輛..."
+                                    noOptionsMessage={() => selectedCompanyId ? "找不到符合的車輛" : "請先選擇公司"}
+                                    isDisabled={!selectedCompanyId}
+                                    styles={selectStyles}
+                                />
                                 {error === '請選擇車輛' && (
-                                    <Form.Control.Feedback type="invalid">
+                                    <div className="text-danger mt-1" style={{ fontSize: '0.875rem' }}>
                                         {error}
-                                    </Form.Control.Feedback>
+                                    </div>
                                 )}
                             </Form.Group>
 
@@ -431,41 +438,21 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                         <div style={styles.cardSection}>
                             <h6 className="mb-3 text-muted">服務項目</h6>
 
-                            {/* 顯示全部洗車項目供勾選 */}
-                            {washItems.length > 0 ? (
-                                <div className="mb-3">
-                                    <ListGroup>
-                                        {washItems.map((item, index) => (
-                                            <ListGroup.Item
-                                                key={index}
-                                                action={false}
-                                                onClick={(event) => handleItemToggle(item, event)}
-                                                onMouseDown={(event) => event.preventDefault()}
-                                                active={isItemSelected(item)}
-                                                className="d-flex justify-content-between align-items-center py-2"
-                                                style={{
-                                                    backgroundColor: isItemSelected(item) ? '#e6f2ff' : 'white',
-                                                    cursor: 'pointer',
-                                                    color: isItemSelected(item) ? '#000' : 'inherit',
-                                                    fontWeight: isItemSelected(item) ? '500' : 'normal'
-                                                }}
-                                            >
-                                                <div className="d-flex align-items-center">
-                                                    <div className="me-2" style={{ width: '20px', height: '20px' }}>
-                                                        {isItemSelected(item) && <FaCheck color="#0d6efd" />}
-                                                    </div>
-                                                    <span>{formatWashItemName(item)}</span>
-                                                </div>
-                                                <span style={isItemSelected(item) ?
-                                                    { ...styles.itemPrice, fontWeight: '600' } :
-                                                    styles.itemPrice}>${formatWashItemPrice(item)}</span>
-                                            </ListGroup.Item>
-                                        ))}
-                                    </ListGroup>
-                                </div>
-                            ) : (
-                                <p className="text-muted">沒有可用的洗車項目</p>
-                            )}
+                            {/* 使用 Select 元件替換原本的 ListGroup */}
+                            <Select
+                                options={washItemOptions}
+                                value={washItemOptions.filter(option =>
+                                    selectedItems.some(item =>
+                                        (typeof item === 'string' ? item : item.name) ===
+                                        (typeof option.item === 'string' ? option.item : option.item.name)
+                                    )
+                                )}
+                                onChange={handleWashItemsChange}
+                                isMulti
+                                placeholder="選擇或搜尋服務項目..."
+                                noOptionsMessage={() => "找不到符合的服務項目"}
+                                styles={selectStyles}
+                            />
 
                             {/* 自訂項目區塊 */}
                             <div className="mt-4">

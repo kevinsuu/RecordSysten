@@ -167,10 +167,6 @@ const Login = ({ accessDenied }) => {
             const auth = getAuth();
             const provider = new GoogleAuthProvider();
 
-            provider.setCustomParameters({
-                prompt: 'select_account'
-            });
-
             const result = await signInWithPopup(auth, provider);
 
             // 檢查登入的 email 是否為指定帳號
