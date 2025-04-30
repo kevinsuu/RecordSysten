@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Container, Row, Col, Form, Card, Table, Button } from 'react-bootstrap';
-import { FaArrowLeft } from 'react-icons/fa';
+import { Container, Row, Col, Form, Card, Table, Button, ListGroup, Badge, Spinner, Modal, InputGroup } from 'react-bootstrap';
+import { FaArrowLeft, FaHistory, FaSave, FaClock, FaTag } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import { saveFormulaHistory, getFormulaHistory } from '../services/firebase';
 import '../assets/FormulaCalculator.css';
 
 function FormulaCalculator() {
@@ -11,6 +12,12 @@ function FormulaCalculator() {
     const [inputL, setInputL] = useState(500);
     const [calculatedX, setCalculatedX] = useState(120);
     const [results, setResults] = useState([]);
+    const [historyRecords, setHistoryRecords] = useState([]);
+    const [showHistory, setShowHistory] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [recordName, setRecordName] = useState('');
 
     // 定義不同組別的公式數據和顏色
     const groupColors = {
@@ -85,6 +92,106 @@ function FormulaCalculator() {
         }
     }, [group, inputH, inputL, calculatedX, formulaData]);
 
+    // 載入歷史記錄
+    const fetchHistory = async () => {
+        setLoading(true);
+        try {
+            console.log('開始載入歷史記錄');
+            const history = await getFormulaHistory();
+            console.log('歷史記錄載入成功，數量:', history.length);
+
+            // 歷史記錄按時間戳降序排序（最新的在前面）
+            if (Array.isArray(history)) {
+                const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
+                setHistoryRecords(sortedHistory);
+            } else {
+                console.error('獲取的歷史記錄不是數組');
+                setHistoryRecords([]);
+            }
+        } catch (error) {
+            console.error('獲取歷史記錄失敗:', error);
+            setHistoryRecords([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // 初次載入歷史記錄
+    useEffect(() => {
+        fetchHistory();
+    }, []);
+
+    // 打開儲存對話框
+    const handleOpenSaveModal = () => {
+        if (!group) return; // 必須選擇組別才能儲存
+
+        // 設置默認記錄名稱
+        const defaultName = `${group} - H:${inputH} L:${inputL} X:${calculatedX}`;
+        setRecordName(defaultName);
+        setShowSaveModal(true);
+    };
+
+    // 關閉儲存對話框
+    const handleCloseSaveModal = () => {
+        setShowSaveModal(false);
+    };
+
+    // 儲存當前記錄
+    const saveCurrentRecord = async () => {
+        if (!group) return; // 必須選擇組別才能儲存
+
+        setSaving(true);
+        try {
+            // 構建保存數據
+            const recordData = {
+                group,
+                name: recordName.trim() || `${group} - H:${inputH} L:${inputL}`,
+                inputH,
+                inputL,
+                calculatedX,
+                results: results.map(r => ({ formula: r.formula, result: r.result }))
+            };
+
+            console.log('正在保存歷史記錄:', recordData);
+
+            // 保存到 Firebase
+            const updatedHistory = await saveFormulaHistory(recordData);
+            console.log('保存成功，更新後的歷史記錄:', updatedHistory);
+
+            // 重新加載歷史記錄，確保顯示最新數據
+            await fetchHistory();
+
+            // 顯示歷史面板並關閉儲存對話框
+            setShowHistory(true);
+            setShowSaveModal(false);
+        } catch (error) {
+            console.error('儲存歷史記錄失敗:', error);
+            alert('儲存失敗，請稍後再試');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // 從歷史記錄中還原
+    const restoreFromHistory = (record) => {
+        setGroup(record.group);
+        setInputH(record.inputH);
+        setInputL(record.inputL);
+        setShowHistory(false); // 還原後隱藏歷史記錄
+    };
+
+    // 格式化時間戳
+    const formatTimestamp = (timestamp) => {
+        const date = new Date(timestamp);
+        return date.toLocaleString('zh-TW', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     // 返回首頁
     const handleBack = () => {
         navigate('/');
@@ -103,16 +210,77 @@ function FormulaCalculator() {
         ));
     };
 
+    // 切換歷史記錄顯示
+    const toggleHistory = () => {
+        setShowHistory(!showHistory);
+    };
+
     return (
         <Container fluid className="formula-calculator-container">
             <Row className="header-row mb-2">
                 <Col>
-                    <Button variant="outline-secondary" className="back-button" onClick={handleBack}>
-                        <FaArrowLeft /> 返回
-                    </Button>
-                    <h2 className="text-center my-2">公式計算器</h2>
+                    <div className="d-flex justify-content-between align-items-center">
+                        <Button variant="outline-secondary" className="back-button" onClick={handleBack}>
+                            <FaArrowLeft /> 返回
+                        </Button>
+                        <h2 className="text-center my-2 flex-grow-1">公式計算器</h2>
+                        <Button
+                            variant="outline-primary"
+                            className="history-button"
+                            onClick={toggleHistory}
+                        >
+                            <FaHistory /> {showHistory ? '隱藏紀錄' : '歷史紀錄'}
+                        </Button>
+                    </div>
                 </Col>
             </Row>
+
+            {showHistory && (
+                <Row className="mb-2">
+                    <Col>
+                        <Card className="history-card">
+                            <Card.Header className="d-flex justify-content-between align-items-center">
+                                <span>歷史紀錄</span>
+                                {loading && <Spinner animation="border" size="sm" />}
+                            </Card.Header>
+                            <ListGroup variant="flush">
+                                {historyRecords.length > 0 ? (
+                                    historyRecords.map((record, index) => (
+                                        <ListGroup.Item
+                                            key={index}
+                                            action
+                                            onClick={() => restoreFromHistory(record)}
+                                            className="d-flex justify-content-between align-items-center"
+                                        >
+                                            <div>
+                                                <Badge
+                                                    bg="primary"
+                                                    style={{
+                                                        backgroundColor: groupColors[record.group]
+                                                    }}
+                                                >
+                                                    {record.group}
+                                                </Badge>{' '}
+                                                <span className="history-name">
+                                                    {record.name || `H: ${record.inputH}, L: ${record.inputL}, X: ${record.calculatedX}`}
+                                                </span>
+                                            </div>
+                                            <small className="text-muted">
+                                                <FaClock className="me-1" />
+                                                {formatTimestamp(record.timestamp)}
+                                            </small>
+                                        </ListGroup.Item>
+                                    ))
+                                ) : (
+                                    <ListGroup.Item className="text-center text-muted">
+                                        {loading ? '載入中...' : '沒有歷史紀錄'}
+                                    </ListGroup.Item>
+                                )}
+                            </ListGroup>
+                        </Card>
+                    </Col>
+                </Row>
+            )}
 
             <Row className="mb-2">
                 <Col xs={12} md={6} className="mb-2 mb-md-0">
@@ -124,14 +292,23 @@ function FormulaCalculator() {
                         }}
                     >
                         <Card.Header
+                            className="d-flex justify-content-between align-items-center"
                             style={{
                                 backgroundColor: getCurrentGroupColor(),
                                 color: '#fff',
                                 fontWeight: 'bold',
-                                display: group ? 'block' : 'none'
+                                display: group ? 'flex' : 'none'
                             }}
                         >
-                            {group}
+                            <span>{group}</span>
+                            <Button
+                                size="sm"
+                                variant="light"
+                                onClick={handleOpenSaveModal}
+                                disabled={!group}
+                            >
+                                <FaSave /> 儲存
+                            </Button>
                         </Card.Header>
                         <Card.Body className="py-2">
                             <Form>
@@ -232,6 +409,64 @@ function FormulaCalculator() {
                     </Card>
                 </Col>
             </Row>
+
+            {/* 儲存對話框 */}
+            <Modal show={showSaveModal} onHide={handleCloseSaveModal} centered>
+                <Modal.Header
+                    style={{
+                        backgroundColor: getCurrentGroupColor(),
+                        color: '#fff'
+                    }}
+                >
+                    <Modal.Title>儲存計算記錄</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>記錄名稱</Form.Label>
+                            <InputGroup>
+                                <InputGroup.Text>
+                                    <FaTag />
+                                </InputGroup.Text>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="輸入一個易於識別的名稱"
+                                    value={recordName}
+                                    onChange={(e) => setRecordName(e.target.value)}
+                                    autoFocus
+                                />
+                            </InputGroup>
+                            <Form.Text className="text-muted">
+                                為計算記錄命名，方便以後查找（如未輸入將使用預設名稱）
+                            </Form.Text>
+                        </Form.Group>
+
+                        <div className="calculation-summary">
+                            <div><strong>組別:</strong> {group}</div>
+                            <div><strong>H值:</strong> {inputH}</div>
+                            <div><strong>L值:</strong> {inputL}</div>
+                            <div><strong>X值:</strong> {calculatedX}</div>
+                        </div>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={handleCloseSaveModal}>
+                        取消
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={saveCurrentRecord}
+                        disabled={saving}
+                        style={{
+                            backgroundColor: getCurrentGroupColor(),
+                            borderColor: getCurrentGroupColor()
+                        }}
+                    >
+                        {saving ? <Spinner animation="border" size="sm" /> : <FaSave className="me-1" />}
+                        {saving ? '儲存中...' : '儲存記錄'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </Container>
     );
 }

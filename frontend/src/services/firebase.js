@@ -190,5 +190,92 @@ export const updateSortIndex = async (path, sortIndex) => {
     }
 };
 
+// 保存公式計算器歷史記錄
+export const saveFormulaHistory = async (historyData) => {
+    try {
+        // 獲取當前歷史記錄
+        const historyRef = ref(database, 'formula_history');
+        const snapshot = await get(historyRef);
+        let historyList = snapshot.val() || [];
+
+        // 確保歷史記錄是數組
+        if (!Array.isArray(historyList)) {
+            console.warn('歷史記錄不是數組，重置為空數組');
+            historyList = [];
+        }
+
+        console.log('現有歷史記錄數量:', historyList.length);
+
+        // 添加新記錄，並附上時間戳
+        const newRecord = {
+            ...historyData,
+            timestamp: Date.now()
+        };
+
+        console.log('新記錄:', newRecord);
+
+        // 如果已經有10條記錄，移除最舊的一條
+        let updatedHistory = [...historyList];
+        if (updatedHistory.length >= 10) {
+            updatedHistory.shift(); // 移除最舊的記錄
+            console.log('移除最舊的記錄，剩餘數量:', updatedHistory.length);
+        }
+
+        // 添加新記錄
+        updatedHistory.push(newRecord);
+        console.log('添加新記錄後的數量:', updatedHistory.length);
+
+        // 保存更新後的歷史記錄
+        await set(ref(database, 'formula_history'), updatedHistory);
+        console.log('保存完成');
+
+        return updatedHistory;
+    } catch (error) {
+        console.error('保存公式歷史記錄時發生錯誤:', error);
+        // 將錯誤詳情記錄到控制台，便於調試
+        console.error('錯誤詳情:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack,
+            database: database ? 'initialized' : 'not initialized'
+        });
+        throw error;
+    }
+};
+
+// 獲取公式計算器歷史記錄
+export const getFormulaHistory = async () => {
+    try {
+        console.log('正在獲取歷史記錄...');
+        const historyRef = ref(database, 'formula_history');
+        const snapshot = await get(historyRef);
+        const data = snapshot.val();
+
+        // 確保返回的是數組
+        if (!data) {
+            console.log('沒有歷史記錄數據，返回空數組');
+            return [];
+        }
+
+        if (!Array.isArray(data)) {
+            console.warn('歷史記錄數據不是數組格式:', data);
+            return [];
+        }
+
+        console.log(`獲取到 ${data.length} 條歷史記錄`);
+        return data;
+    } catch (error) {
+        console.error('獲取公式歷史記錄時發生錯誤:', error);
+        console.error('錯誤詳情:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack,
+            database: database ? 'initialized' : 'not initialized'
+        });
+        // 出錯時返回空數組而不是拋出錯誤，避免頁面崩潰
+        return [];
+    }
+};
+
 export { database, auth };
 export default app; 
