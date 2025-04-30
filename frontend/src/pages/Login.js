@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Alert, Button } from 'react-bootstrap';
+import { Alert, Button } from 'react-bootstrap';
 import { FaGoogle } from 'react-icons/fa';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import logo from '../assets/image.png';
@@ -7,7 +7,6 @@ import logo from '../assets/image.png';
 const Login = ({ accessDenied }) => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
 
     // 如果接收到訪問拒絕的狀態，設置相應的錯誤消息
     useEffect(() => {
@@ -16,19 +15,6 @@ const Login = ({ accessDenied }) => {
         }
     }, [accessDenied]);
 
-    useEffect(() => {
-        // 檢查視窗大小
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth <= 768);
-        };
-
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-
-        return () => {
-            window.removeEventListener('resize', checkMobile);
-        };
-    }, []);
 
     // 添加移動版樣式
     useEffect(() => {

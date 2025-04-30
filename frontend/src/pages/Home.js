@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav, Pagination } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
-import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt } from 'react-icons/fa';
+import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt, FaCalculator } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -12,12 +12,14 @@ import WashItemManager from '../components/WashItemManager';
 import * as firebaseService from '../services/firebase';
 import { database } from '../services/firebase';
 import { getAuth, signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'react-datepicker/dist/react-datepicker.css';
 import '../assets/Home.css';
 import { ref, set } from 'firebase/database';
 
 function Home() {
+    const navigate = useNavigate();
     // 狀態管理
     const [data, setData] = useState({ companies: {} });
     const [selectedCompany, setSelectedCompany] = useState('all');
@@ -867,15 +869,23 @@ function Home() {
         };
     }, [updateLastActivity, checkAndRefreshData, ACTIVITY_CHECK_INTERVAL]);
 
+    // 導航到公式計算頁面
+    const navigateToFormulaCalculator = () => {
+        navigate('/formula-calculator');
+    };
+
     return (
         <>
             {/* 導航欄 */}
-            <Navbar bg="light" expand="lg" className="mb-3">
-                <Container>
-                    <Navbar.Brand>電子紀錄系統</Navbar.Brand>
+            <Navbar bg="light" expand="lg" className="mb-3 sticky-top">
+                <Container fluid>
+                    <Navbar.Brand>記錄系統</Navbar.Brand>
                     <Navbar.Toggle aria-controls="basic-navbar-nav" />
                     <Navbar.Collapse id="basic-navbar-nav" className="justify-content-end">
                         <Nav>
+                            <Nav.Link onClick={navigateToFormulaCalculator} className="d-flex align-items-center me-3">
+                                <FaCalculator className="me-1" /> 公式計算
+                            </Nav.Link>
                             <Nav.Link onClick={() => setShowWashItemManager(true)} className="d-flex align-items-center me-3">
                                 <FaListAlt className="me-1" /> 服務項目管理
                             </Nav.Link>

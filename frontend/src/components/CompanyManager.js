@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Form, Row, Col, Modal, ListGroup } from 'react-bootstrap';
 import { ref, set, push, remove } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaGripVertical, FaBars } from 'react-icons/fa';
+import {  FaBars } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 

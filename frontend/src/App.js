@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import FormulaCalculator from './pages/FormulaCalculator';
 import './App.css';
 
 function App() {
@@ -62,6 +63,11 @@ function App() {
         <Route path="/" element={
           <ProtectedRoute>
             <Home />
+          </ProtectedRoute>
+        } />
+        <Route path="/formula-calculator" element={
+          <ProtectedRoute>
+            <FormulaCalculator />
           </ProtectedRoute>
         } />
       </Routes>

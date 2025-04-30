@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Form, Row, Col, InputGroup, Card, ListGroup } from 'react-bootstrap';
-import { ref, set, get, push } from 'firebase/database';
+import { Button, Form, Row, Col, InputGroup, Card } from 'react-bootstrap';
+import { ref, set, get } from 'firebase/database';
 import DatePicker from 'react-datepicker';
-import { FaPlus, FaTrash, FaCalendarAlt, FaCheck } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaCalendarAlt } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Select from 'react-select';
@@ -333,14 +333,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
         }
     };
 
-    // 檢查項目是否已被選中
-    const isItemSelected = (item) => {
-        return selectedItems.some(selectedItem =>
-            typeof item === 'string'
-                ? selectedItem.name === item
-                : selectedItem.name === item.name
-        );
-    };
+
 
     return (
         <div className="add-record-form">

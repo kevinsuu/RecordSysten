@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Form, Row, Col, Modal, ListGroup } from 'react-bootstrap';
 import { ref, set, push, remove, get } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaGripVertical, FaCog, FaBars } from 'react-icons/fa';
+import { FaCog, FaBars } from 'react-icons/fa';
 // MUI 組件
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -390,16 +390,6 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
         };
     }, []);
 
-    // 渲染車輛類型選項
-    const renderVehicleTypeOptions = () => {
-        if (!vehicleTypes) return null;
-
-        return vehicleTypes.map((type, index) => (
-            <option key={index} value={type}>
-                {type}
-            </option>
-        ));
-    };
 
     return (
         <div className="vehicle-manager" style={{ overflow: 'hidden' }}>
