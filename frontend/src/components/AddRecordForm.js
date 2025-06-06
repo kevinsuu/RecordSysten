@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Form, Row, Col, InputGroup, Card } from 'react-bootstrap';
+import { Button, Form, Row, Col, InputGroup, Card, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { ref, set, get } from 'firebase/database';
 import DatePicker from 'react-datepicker';
-import { FaPlus, FaTrash, FaCalendarAlt } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaCalendarAlt, FaTimes } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Select from 'react-select';
@@ -192,7 +192,29 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             ...base,
             position: 'relative',
             zIndex: 2
+        }),
+        clearIndicator: (base) => ({
+            ...base,
+            cursor: 'pointer',
+            padding: '6px',
+            ':hover': {
+                color: '#dc3545'
+            }
         })
+    };
+
+    // 自定義清除按鈕
+    const ClearIndicator = props => {
+        return (
+            <OverlayTrigger
+                placement="top"
+                overlay={<Tooltip id="clear-tooltip">清除所有已選項目</Tooltip>}
+            >
+                <div {...props.innerProps} style={props.getStyles('clearIndicator', props)}>
+                    <FaTimes />
+                </div>
+            </OverlayTrigger>
+        );
     };
 
     // 處理服務項目多選
@@ -341,8 +363,6 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
         }
     };
 
-
-
     return (
         <div className="add-record-form">
             <Card className="border-0 shadow-sm">
@@ -458,6 +478,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                                 onMenuOpen={() => setIsMenuOpen(true)}
                                 onMenuClose={() => setIsMenuOpen(false)}
                                 closeMenuOnSelect={false}
+                                components={{ ClearIndicator }}
                             />
 
                             {/* 自訂項目區塊 */}
