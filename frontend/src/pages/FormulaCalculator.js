@@ -30,11 +30,11 @@ function FormulaCalculator() {
     // 使用 useMemo 包裝 formulaData 避免重複創建
     const formulaData = useMemo(() => ({
         'A組': [
-            { formula: '0.66X + L', calculation: (h, l, x) => 0.66 * x + l, result: 0 },
-            { formula: '0.58X + L', calculation: (h, l, x) => 0.58 * x + l, result: 0 },
+            { formula: '0.68X + L', calculation: (h, l, x) => 0.66 * x + l, result: 0 },
+            { formula: '0.59X + L', calculation: (h, l, x) => 0.58 * x + l, result: 0 },
             { formula: '0.5X + L', calculation: (h, l, x) => 0.5 * x + l, result: 0 },
-            { formula: '0.42X + L', calculation: (h, l, x) => 0.42 * x + l, result: 0 },
-            { formula: '0.33X + L', calculation: (h, l, x) => 0.33 * x + l, result: 0 },
+            { formula: '0.41X + L', calculation: (h, l, x) => 0.42 * x + l, result: 0 },
+            { formula: '0.32X + L', calculation: (h, l, x) => 0.33 * x + l, result: 0 },
         ],
         '30k組': [
             { formula: '2X + H', calculation: (h, l, x) => 2 * x + h, result: 0 },
