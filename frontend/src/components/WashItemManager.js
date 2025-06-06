@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Form, Row, Col, ListGroup, Modal } from 'react-bootstrap';
+import React, { useState, useEffect, useRef } from 'react';
+import { Button, Form, Row, Col, ListGroup, Modal, Popover, Overlay } from 'react-bootstrap';
 import { ref, set, get } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaBars } from 'react-icons/fa';
+import { FaBars, FaTimes } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
@@ -27,7 +27,6 @@ const StrictModeDroppable = ({ children, ...props }) => {
 
 const WashItemManager = ({ database, onSave }) => {
     const [washItems, setWashItems] = useState([]);
-    const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [itemName, setItemName] = useState('');
     const [itemPrice, setItemPrice] = useState('');
@@ -35,12 +34,14 @@ const WashItemManager = ({ database, onSave }) => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
+    const [showPopover, setShowPopover] = useState(false);
+    const target = useRef(null);
 
     // 添加通知狀態
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
-        severity: 'success' // 'success', 'error', 'warning', 'info'
+        severity: 'success'
     });
 
     // 處理關閉通知
@@ -147,7 +148,9 @@ const WashItemManager = ({ database, onSave }) => {
     };
 
     // 添加洗車項目
-    const addWashItem = async () => {
+    const addWashItem = async (e) => {
+        e?.preventDefault(); // 防止表單提交刷新頁面
+
         if (!itemName.trim()) {
             setError('請輸入服務項目名稱');
             return;
@@ -169,10 +172,9 @@ const WashItemManager = ({ database, onSave }) => {
             // 更新 Firebase
             await set(ref(database, 'wash_items'), newWashItems);
 
-            // 清除表單
+            // 清除表單但不關閉 Popover
             setItemName('');
             setItemPrice('');
-            setShowAddModal(false);
             setError('');
 
             // 顯示成功通知
@@ -294,14 +296,69 @@ const WashItemManager = ({ database, onSave }) => {
             <Row className="mb-3">
                 <Col>
                     <Button
+                        ref={target}
                         variant="primary"
                         onClick={() => {
                             resetForm();
-                            setShowAddModal(true);
+                            setShowPopover(!showPopover);
                         }}
                     >
                         新增項目
                     </Button>
+
+                    <Overlay
+                        show={showPopover}
+                        target={target.current}
+                        placement="bottom-start"
+                        rootClose
+                        onHide={() => setShowPopover(false)}
+                    >
+                        <Popover id="popover-basic" style={{ minWidth: '300px' }}>
+                            <Popover.Header as="h3" className="d-flex justify-content-between align-items-center">
+                                新增項目
+                                <Button
+                                    variant="link"
+                                    className="p-0 text-dark"
+                                    onClick={() => setShowPopover(false)}
+                                >
+                                    <FaTimes />
+                                </Button>
+                            </Popover.Header>
+                            <Popover.Body>
+                                <Form onSubmit={addWashItem}>
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>服務項目名稱:</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            value={itemName}
+                                            onChange={(e) => setItemName(e.target.value)}
+                                            placeholder="請輸入服務項目名稱"
+                                            isInvalid={!!error}
+                                        />
+                                        <Form.Control.Feedback type="invalid">
+                                            {error}
+                                        </Form.Control.Feedback>
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>服務金額:</Form.Label>
+                                        <Form.Control
+                                            type="number"
+                                            value={itemPrice}
+                                            onChange={(e) => setItemPrice(e.target.value)}
+                                            placeholder="請輸入服務金額"
+                                        />
+                                    </Form.Group>
+
+                                    <div className="text-end">
+                                        <Button variant="primary" type="submit">
+                                            新增項目
+                                        </Button>
+                                    </div>
+                                </Form>
+                            </Popover.Body>
+                        </Popover>
+                    </Overlay>
                 </Col>
             </Row>
 
@@ -391,46 +448,6 @@ const WashItemManager = ({ database, onSave }) => {
                     尚未添加任何洗車項目
                 </div>
             )}
-
-            {/* 新增洗車項目對話框 */}
-            <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>新增項目</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form.Group className="mb-3">
-                        <Form.Label>服務項目名稱:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={itemName}
-                            onChange={(e) => setItemName(e.target.value)}
-                            placeholder="請輸入服務項目名稱"
-                            isInvalid={!!error}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                            {error}
-                        </Form.Control.Feedback>
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                        <Form.Label>服務金額:</Form.Label>
-                        <Form.Control
-                            type="number"
-                            value={itemPrice}
-                            onChange={(e) => setItemPrice(e.target.value)}
-                            placeholder="請輸入服務金額"
-                        />
-                    </Form.Group>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowAddModal(false)}>
-                        取消
-                    </Button>
-                    <Button variant="primary" onClick={addWashItem}>
-                        新增項目
-                    </Button>
-                </Modal.Footer>
-            </Modal>
 
             {/* 編輯洗車項目對話框 */}
             <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>

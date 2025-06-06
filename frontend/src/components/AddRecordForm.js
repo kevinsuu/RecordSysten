@@ -187,14 +187,22 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             ':active': {
                 backgroundColor: state.isSelected ? '#0d6efd' : '#e9ecef'
             }
+        }),
+        menu: (base) => ({
+            ...base,
+            position: 'relative',
+            zIndex: 2
         })
     };
 
     // 處理服務項目多選
     const handleWashItemsChange = (selectedOptions) => {
-        const newSelectedItems = selectedOptions.map(option => option.item);
+        const newSelectedItems = selectedOptions ? selectedOptions.map(option => option.item) : [];
         setSelectedItems(newSelectedItems);
     };
+
+    // 處理選單開關
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // 添加自訂項目
     const addCustomItem = (event) => {
@@ -446,6 +454,10 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                                 placeholder="選擇或搜尋服務項目..."
                                 noOptionsMessage={() => "找不到符合的服務項目"}
                                 styles={selectStyles}
+                                menuIsOpen={isMenuOpen}
+                                onMenuOpen={() => setIsMenuOpen(true)}
+                                onMenuClose={() => setIsMenuOpen(false)}
+                                closeMenuOnSelect={false}
                             />
 
                             {/* 自訂項目區塊 */}
