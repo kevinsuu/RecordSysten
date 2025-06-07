@@ -406,7 +406,8 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                 newRecord: formattedRecord,
                 updatedData: newData,
                 source: 'AddRecordForm',
-                shouldClearSearch: !editingRecord
+                shouldClearSearch: !editingRecord,
+                shouldResetForm: true
             });
 
             showNotification(editingRecord ? '記錄已成功更新！' : '記錄已成功儲存', 'success');

@@ -171,6 +171,11 @@ function Home() {
 
     // 當其他元件儲存資料後的處理函數
     const onSave = (options = {}) => {
+        // 如果需要重置表單
+        if (options.shouldResetForm) {
+            setEditingRecord(null);  // 清除編輯狀態
+        }
+
         // 如果傳入reload為false，則避免重新載入
         if (options.reload === false) {
             // 如果需要清除搜尋
@@ -211,9 +216,7 @@ function Home() {
 
                 // 添加新記錄，並確保按時間戳降序排序
                 setRecords(prevRecords => {
-                    // 添加新記錄到列表中
                     const updatedRecords = [options.newRecord, ...prevRecords];
-                    // 確保按時間戳降序排序
                     return updatedRecords.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
                 });
             }
@@ -221,7 +224,6 @@ function Home() {
             // 若有更新後的完整資料，則更新資料狀態
             if (options.updatedData) {
                 setData(options.updatedData);
-                // 如果有需要，重新處理記錄
                 processRecords(options.updatedData);
             }
 
