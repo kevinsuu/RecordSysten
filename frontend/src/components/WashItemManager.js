@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, Form, Row, Col, ListGroup, Modal } from 'react-bootstrap';
 import { ref, set, get } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaBars, FaPlus } from 'react-icons/fa';
+import { FaPlus, FaBars } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
@@ -46,13 +46,12 @@ const WashItemManager = ({ database, onSave }) => {
                 const snapshot = await get(washItemsRef);
                 if (snapshot.exists()) {
                     const items = snapshot.val();
-                    const sortedItems = Object.entries(items)
+                    const itemsList = Object.entries(items)
                         .map(([id, item]) => ({
                             id,
                             ...item
-                        }))
-                        .sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
-                    setWashItems(sortedItems);
+                        }));
+                    setWashItems(itemsList);
                 }
             } catch (error) {
                 console.error('Error fetching wash items:', error);
@@ -186,6 +185,10 @@ const WashItemManager = ({ database, onSave }) => {
 
     // 處理刪除項目
     const handleDeleteItem = async (itemId) => {
+        if (!window.confirm('確定要刪除此服務項目？')) {
+            return;
+        }
+
         const updatedItems = washItems.filter(item => item.id !== itemId);
         const success = await saveWashItems(updatedItems);
 
@@ -231,7 +234,7 @@ const WashItemManager = ({ database, onSave }) => {
     };
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* 新增項目表單 */}
             <Form className="mb-3">
                 <Row>
@@ -268,20 +271,14 @@ const WashItemManager = ({ database, onSave }) => {
             </Form>
 
             {/* 項目列表 */}
-            <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                msOverflowStyle: '-ms-autohiding-scrollbar',
-                paddingRight: '5px'
-            }}>
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }}>
                 <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-                    <StrictModeDroppable droppableId="wash-item-list">
+                    <StrictModeDroppable droppableId="wash-items">
                         {(provided) => (
                             <div
-                                {...provided.droppableProps}
                                 ref={provided.innerRef}
-                                className="drag-container"
+                                {...provided.droppableProps}
+                                style={{ minHeight: '100%' }}
                             >
                                 <ListGroup>
                                     {washItems.map((item, index) => (
@@ -295,19 +292,30 @@ const WashItemManager = ({ database, onSave }) => {
                                                     ref={provided.innerRef}
                                                     {...provided.draggableProps}
                                                     className={`mb-2 ${snapshot.isDragging ? 'dragging' : ''}`}
+                                                    style={{
+                                                        ...provided.draggableProps.style,
+                                                        backgroundColor: '#f8f9fa',
+                                                        border: '1px solid #dee2e6',
+                                                        borderRadius: '8px'
+                                                    }}
                                                 >
                                                     <div className="d-flex align-items-center">
                                                         <div
                                                             {...provided.dragHandleProps}
-                                                            className="drag-handle"
+                                                            className="me-3"
+                                                            style={{
+                                                                cursor: 'grab',
+                                                                color: '#6c757d',
+                                                                padding: '8px',
+                                                                borderRadius: '4px',
+                                                                backgroundColor: '#e9ecef'
+                                                            }}
                                                         >
                                                             <FaBars />
                                                         </div>
                                                         <div className="flex-grow-1">
                                                             <div className="fw-bold">{item.name}</div>
-                                                            <div className="text-muted">
-                                                                NT$ {item.price}
-                                                            </div>
+                                                            <div className="text-muted">價格: ${item.price}</div>
                                                         </div>
                                                         <div>
                                                             <Button
@@ -339,7 +347,7 @@ const WashItemManager = ({ database, onSave }) => {
                 </DragDropContext>
             </div>
 
-            {/* 編輯 Modal */}
+            {/* 編輯項目對話框 */}
             <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>編輯服務項目</Modal.Title>
@@ -351,9 +359,7 @@ const WashItemManager = ({ database, onSave }) => {
                             <Form.Control
                                 type="text"
                                 value={editingItem?.name || ''}
-                                onChange={(e) =>
-                                    setEditingItem({ ...editingItem, name: e.target.value })
-                                }
+                                onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
                             />
                         </Form.Group>
                         <Form.Group className="mb-3">
@@ -361,9 +367,7 @@ const WashItemManager = ({ database, onSave }) => {
                             <Form.Control
                                 type="number"
                                 value={editingItem?.price || ''}
-                                onChange={(e) =>
-                                    setEditingItem({ ...editingItem, price: e.target.value })
-                                }
+                                onChange={(e) => setEditingItem({ ...editingItem, price: e.target.value })}
                             />
                         </Form.Group>
                     </Form>
@@ -378,10 +382,10 @@ const WashItemManager = ({ database, onSave }) => {
                 </Modal.Footer>
             </Modal>
 
-            {/* Snackbar */}
+            {/* 通知 */}
             <Snackbar
                 open={snackbar.open}
-                autoHideDuration={3000}
+                autoHideDuration={5000}
                 onClose={handleCloseSnackbar}
                 anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
             >
