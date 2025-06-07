@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Button, Form, Row, Col, ListGroup, Modal, Popover, Overlay } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Button, Form, Row, Col, ListGroup, Modal } from 'react-bootstrap';
 import { ref, set, get } from 'firebase/database';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaBars, FaTimes } from 'react-icons/fa';
+import { FaBars, FaPlus } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
@@ -27,471 +27,361 @@ const StrictModeDroppable = ({ children, ...props }) => {
 
 const WashItemManager = ({ database, onSave }) => {
     const [washItems, setWashItems] = useState([]);
+    const [newItemName, setNewItemName] = useState('');
+    const [newItemPrice, setNewItemPrice] = useState('');
+    const [editingItem, setEditingItem] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
-    const [itemName, setItemName] = useState('');
-    const [itemPrice, setItemPrice] = useState('');
-    const [selectedItemIndex, setSelectedItemIndex] = useState(null);
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
-    const [showPopover, setShowPopover] = useState(false);
-    const target = useRef(null);
-
-    // 添加通知狀態
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
         severity: 'success'
     });
 
-    // 處理關閉通知
-    const handleCloseSnackbar = () => {
-        setSnackbar(prev => ({ ...prev, open: false }));
-    };
-
-    // 顯示通知的輔助函數
-    const showNotification = (message, severity = 'success') => {
-        setSnackbar({
-            open: true,
-            message,
-            severity
-        });
-    };
-
-    // 載入洗車項目
+    // 載入服務項目
     useEffect(() => {
-        const loadWashItems = async () => {
+        const fetchWashItems = async () => {
             try {
                 const washItemsRef = ref(database, 'wash_items');
                 const snapshot = await get(washItemsRef);
                 if (snapshot.exists()) {
-                    const items = snapshot.val() || [];
-                    // 確保每個項目都有 sort_index
-                    const itemsWithIndex = items.map((item, index) => {
-                        if (typeof item === 'string') {
-                            return {
-                                name: item,
-                                price: 0,
-                                sort_index: index
-                            };
-                        }
-                        return {
-                            ...item,
-                            sort_index: item.sort_index !== undefined ? item.sort_index : index
-                        };
-                    });
-                    // 根據 sort_index 排序
-                    itemsWithIndex.sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
-                    setWashItems(itemsWithIndex);
-                } else {
-                    setWashItems([]);
+                    const items = snapshot.val();
+                    const sortedItems = Object.entries(items)
+                        .map(([id, item]) => ({
+                            id,
+                            ...item
+                        }))
+                        .sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
+                    setWashItems(sortedItems);
                 }
             } catch (error) {
-                console.error('載入洗車項目時發生錯誤:', error);
-                setError('載入洗車項目時發生錯誤: ' + error.message);
-            } finally {
-                setLoading(false);
+                console.error('Error fetching wash items:', error);
+                setSnackbar({
+                    open: true,
+                    message: '載入服務項目時發生錯誤',
+                    severity: 'error'
+                });
             }
         };
 
-        loadWashItems();
+        fetchWashItems();
     }, [database]);
 
-    // 處理拖放排序開始事件
+    // 儲存服務項目
+    const saveWashItems = async (items) => {
+        try {
+            const washItemsRef = ref(database, 'wash_items');
+            const itemsObject = items.reduce((acc, item, index) => {
+                acc[item.id] = {
+                    name: item.name,
+                    price: item.price,
+                    sort_index: index
+                };
+                return acc;
+            }, {});
+
+            await set(washItemsRef, itemsObject);
+            if (onSave) {
+                onSave({ reload: false });
+            }
+            return true;
+        } catch (error) {
+            console.error('Error saving wash items:', error);
+            setSnackbar({
+                open: true,
+                message: '儲存服務項目時發生錯誤',
+                severity: 'error'
+            });
+            return false;
+        }
+    };
+
+    // 處理新增項目
+    const handleAddItem = async () => {
+        if (!newItemName.trim() || !newItemPrice.trim()) {
+            setSnackbar({
+                open: true,
+                message: '請填寫項目名稱和價格',
+                severity: 'warning'
+            });
+            return;
+        }
+
+        const price = parseFloat(newItemPrice);
+        if (isNaN(price) || price < 0) {
+            setSnackbar({
+                open: true,
+                message: '請輸入有效的價格',
+                severity: 'warning'
+            });
+            return;
+        }
+
+        const newItem = {
+            id: Date.now().toString(),
+            name: newItemName.trim(),
+            price: price
+        };
+
+        const updatedItems = [...washItems, newItem];
+        const success = await saveWashItems(updatedItems);
+
+        if (success) {
+            setWashItems(updatedItems);
+            setNewItemName('');
+            setNewItemPrice('');
+            setSnackbar({
+                open: true,
+                message: '新增服務項目成功',
+                severity: 'success'
+            });
+        }
+    };
+
+    // 處理編輯項目
+    const handleEditItem = (item) => {
+        setEditingItem(item);
+        setShowEditModal(true);
+    };
+
+    // 處理更新項目
+    const handleUpdateItem = async () => {
+        if (!editingItem.name.trim() || !editingItem.price.toString().trim()) {
+            setSnackbar({
+                open: true,
+                message: '請填寫項目名稱和價格',
+                severity: 'warning'
+            });
+            return;
+        }
+
+        const price = parseFloat(editingItem.price);
+        if (isNaN(price) || price < 0) {
+            setSnackbar({
+                open: true,
+                message: '請輸入有效的價格',
+                severity: 'warning'
+            });
+            return;
+        }
+
+        const updatedItems = washItems.map(item =>
+            item.id === editingItem.id
+                ? { ...item, name: editingItem.name.trim(), price: price }
+                : item
+        );
+
+        const success = await saveWashItems(updatedItems);
+
+        if (success) {
+            setWashItems(updatedItems);
+            setShowEditModal(false);
+            setSnackbar({
+                open: true,
+                message: '更新服務項目成功',
+                severity: 'success'
+            });
+        }
+    };
+
+    // 處理刪除項目
+    const handleDeleteItem = async (itemId) => {
+        const updatedItems = washItems.filter(item => item.id !== itemId);
+        const success = await saveWashItems(updatedItems);
+
+        if (success) {
+            setWashItems(updatedItems);
+            setSnackbar({
+                open: true,
+                message: '刪除服務項目成功',
+                severity: 'success'
+            });
+        }
+    };
+
+    // 處理拖曳開始
     const onDragStart = () => {
-        document.body.style.cursor = 'grabbing';
         setIsDragging(true);
     };
 
-    // 處理拖放排序結束事件
+    // 處理拖曳結束
     const onDragEnd = async (result) => {
-        // 恢復正常鼠標樣式
-        document.body.style.cursor = 'default';
         setIsDragging(false);
 
-        // 如果沒有目標或拖曳到相同位置，則不做任何事
-        if (!result.destination || result.source.index === result.destination.index) {
+        if (!result.destination) {
             return;
         }
 
-        try {
-            // 獲取當前的項目數組副本
-            const items = Array.from(washItems);
+        const items = Array.from(washItems);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
 
-            // 從源位置移除被拖拽的項目
-            const [reorderedItem] = items.splice(result.source.index, 1);
-
-            // 將項目插入到目標位置
-            items.splice(result.destination.index, 0, reorderedItem);
-
-            // 更新排序索引
-            const reorderedItems = items.map((item, index) => ({
-                ...item,
-                sort_index: index
-            }));
-
-            // 更新本地狀態
-            setWashItems(reorderedItems);
-
-            // 更新 Firebase
-            await set(ref(database, 'wash_items'), reorderedItems);
-
-            // 顯示成功通知
-            showNotification('項目順序已更新！');
-
-            // 通知父元件
-            if (onSave) onSave({ reload: false });
-        } catch (error) {
-            console.error('更新排序時發生錯誤:', error);
-            showNotification('更新排序時發生錯誤: ' + error.message, 'error');
+        const success = await saveWashItems(items);
+        if (success) {
+            setWashItems(items);
         }
     };
 
-    // 添加洗車項目
-    const addWashItem = async (e) => {
-        e?.preventDefault(); // 防止表單提交刷新頁面
-
-        if (!itemName.trim()) {
-            setError('請輸入服務項目名稱');
+    // 關閉 Snackbar
+    const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
             return;
         }
-
-        try {
-            // 準備新項目
-            const maxSortIndex = Math.max(...washItems.map(item => item.sort_index || 0), -1);
-            const newItem = {
-                name: itemName.trim(),
-                price: itemPrice !== '' && !isNaN(Number(itemPrice)) ? Number(itemPrice) : 0,
-                sort_index: maxSortIndex + 1
-            };
-
-            // 更新本地數據
-            const newWashItems = [...washItems, newItem];
-            setWashItems(newWashItems);
-
-            // 更新 Firebase
-            await set(ref(database, 'wash_items'), newWashItems);
-
-            // 清除表單但不關閉 Popover
-            setItemName('');
-            setItemPrice('');
-            setError('');
-
-            // 顯示成功通知
-            showNotification('洗車項目已成功新增！');
-
-            // 通知父元件
-            if (onSave) onSave({ reload: false });
-        } catch (error) {
-            console.error('添加洗車項目時發生錯誤:', error);
-            setError('添加洗車項目時發生錯誤: ' + error.message);
-        }
+        setSnackbar({ ...snackbar, open: false });
     };
-
-    // 編輯洗車項目
-    const editWashItem = async () => {
-        if (!itemName.trim()) {
-            setError('請輸入服務項目名稱');
-            return;
-        }
-
-        try {
-            // 準備更新的項目
-            const updatedItem = {
-                ...washItems[selectedItemIndex],
-                name: itemName.trim(),
-                price: itemPrice !== '' && !isNaN(Number(itemPrice)) ? Number(itemPrice) : 0
-            };
-
-            // 更新本地數據
-            const newWashItems = [...washItems];
-            newWashItems[selectedItemIndex] = updatedItem;
-            setWashItems(newWashItems);
-
-            // 更新 Firebase
-            await set(ref(database, 'wash_items'), newWashItems);
-
-            // 清除表單
-            setItemName('');
-            setItemPrice('');
-            setSelectedItemIndex(null);
-            setShowEditModal(false);
-            setError('');
-
-            // 顯示成功通知
-            showNotification('洗車項目已成功編輯！');
-
-            // 通知父元件
-            if (onSave) onSave({ reload: false });
-        } catch (error) {
-            console.error('編輯洗車項目時發生錯誤:', error);
-            setError('編輯洗車項目時發生錯誤: ' + error.message);
-        }
-    };
-
-    // 刪除洗車項目
-    const deleteWashItem = async (index) => {
-        if (!window.confirm('確定要刪除此洗車項目嗎？')) {
-            return;
-        }
-
-        try {
-            // 更新本地數據
-            const newWashItems = [...washItems];
-            newWashItems.splice(index, 1);
-
-            // 重新計算排序索引
-            newWashItems.forEach((item, idx) => {
-                item.sort_index = idx;
-            });
-
-            setWashItems(newWashItems);
-
-            // 更新 Firebase
-            await set(ref(database, 'wash_items'), newWashItems);
-
-            // 顯示成功通知
-            showNotification('洗車項目已成功刪除！');
-
-            // 通知父元件
-            if (onSave) onSave({ reload: false });
-        } catch (error) {
-            console.error('刪除洗車項目時發生錯誤:', error);
-            showNotification('刪除洗車項目時發生錯誤: ' + error.message, 'error');
-        }
-    };
-
-    // 格式化顯示項目
-    const formatItemDisplay = (item) => {
-        return `${item.name} - $${item.price}`;
-    };
-
-    // 重置表單
-    const resetForm = () => {
-        setItemName('');
-        setItemPrice('');
-        setError('');
-    };
-
-    // 清理事件監聽器
-    useEffect(() => {
-        return () => {
-            document.body.style.cursor = 'default';
-        };
-    }, []);
-
-    if (loading) {
-        return (
-            <div className="text-center my-5">
-                <div className="spinner-border" role="status">
-                    <span className="visually-hidden">載入中...</span>
-                </div>
-                <p className="mt-2">正在載入洗車項目，請稍候...</p>
-            </div>
-        );
-    }
 
     return (
-        <div className="wash-item-manager">
-            <Row className="mb-3">
-                <Col>
-                    <Button
-                        ref={target}
-                        variant="primary"
-                        onClick={() => {
-                            resetForm();
-                            setShowPopover(!showPopover);
-                        }}
-                    >
-                        新增項目
-                    </Button>
-
-                    <Overlay
-                        show={showPopover}
-                        target={target.current}
-                        placement="bottom-start"
-                        rootClose
-                        onHide={() => setShowPopover(false)}
-                    >
-                        <Popover id="popover-basic" style={{ minWidth: '300px' }}>
-                            <Popover.Header as="h3" className="d-flex justify-content-between align-items-center">
-                                新增項目
-                                <Button
-                                    variant="link"
-                                    className="p-0 text-dark"
-                                    onClick={() => setShowPopover(false)}
-                                >
-                                    <FaTimes />
-                                </Button>
-                            </Popover.Header>
-                            <Popover.Body>
-                                <Form onSubmit={addWashItem}>
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>服務項目名稱:</Form.Label>
-                                        <Form.Control
-                                            type="text"
-                                            value={itemName}
-                                            onChange={(e) => setItemName(e.target.value)}
-                                            placeholder="請輸入服務項目名稱"
-                                            isInvalid={!!error}
-                                        />
-                                        <Form.Control.Feedback type="invalid">
-                                            {error}
-                                        </Form.Control.Feedback>
-                                    </Form.Group>
-
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>服務金額:</Form.Label>
-                                        <Form.Control
-                                            type="number"
-                                            value={itemPrice}
-                                            onChange={(e) => setItemPrice(e.target.value)}
-                                            placeholder="請輸入服務金額"
-                                        />
-                                    </Form.Group>
-
-                                    <div className="text-end">
-                                        <Button variant="primary" type="submit">
-                                            新增項目
-                                        </Button>
-                                    </div>
-                                </Form>
-                            </Popover.Body>
-                        </Popover>
-                    </Overlay>
-                </Col>
-            </Row>
-
-            {isDragging && (
-                <div className="alert alert-info mb-2">
-                    <small>拖曳進行中...放開滑鼠完成排序</small>
-                </div>
-            )}
-
-            <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd} strict={true}>
-                <StrictModeDroppable droppableId="wash-item-list">
-                    {(provided) => (
-                        <div
-                            {...provided.droppableProps}
-                            ref={provided.innerRef}
-                            className="drag-container mb-3"
-                            style={{ overflow: 'hidden' }}
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {/* 新增項目表單 */}
+            <Form className="mb-3">
+                <Row>
+                    <Col xs={12} sm={5}>
+                        <Form.Group className="mb-2">
+                            <Form.Control
+                                type="text"
+                                placeholder="項目名稱"
+                                value={newItemName}
+                                onChange={(e) => setNewItemName(e.target.value)}
+                            />
+                        </Form.Group>
+                    </Col>
+                    <Col xs={12} sm={4}>
+                        <Form.Group className="mb-2">
+                            <Form.Control
+                                type="number"
+                                placeholder="價格"
+                                value={newItemPrice}
+                                onChange={(e) => setNewItemPrice(e.target.value)}
+                            />
+                        </Form.Group>
+                    </Col>
+                    <Col xs={12} sm={3}>
+                        <Button
+                            variant="primary"
+                            onClick={handleAddItem}
+                            className="w-100 mb-2"
                         >
-                            <ListGroup className="mb-3">
-                                {washItems.map((item, index) => (
-                                    <Draggable
-                                        key={`wash-item-${index}`}
-                                        draggableId={`wash-item-${index}`}
-                                        index={index}
-                                    >
-                                        {(provided, snapshot) => (
-                                            <ListGroup.Item
-                                                ref={provided.innerRef}
-                                                {...provided.draggableProps}
-                                                className={`d-flex justify-content-between align-items-center ${snapshot.isDragging ? 'dragging' : ''}`}
-                                            >
-                                                <div className="d-flex align-items-center">
-                                                    <div
-                                                        {...provided.dragHandleProps}
-                                                        className="drag-handle me-2"
-                                                        style={{
-                                                            cursor: snapshot.isDragging ? 'grabbing' : 'grab',
-                                                            fontSize: '18px',
-                                                            backgroundColor: '#f0f0f0',
-                                                            padding: '6px',
-                                                            borderRadius: '4px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center'
-                                                        }}
-                                                    >
-                                                        <FaBars />
+                            <FaPlus className="me-1" /> 新增項目
+                        </Button>
+                    </Col>
+                </Row>
+            </Form>
+
+            {/* 項目列表 */}
+            <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                msOverflowStyle: '-ms-autohiding-scrollbar',
+                paddingRight: '5px'
+            }}>
+                <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
+                    <StrictModeDroppable droppableId="wash-item-list">
+                        {(provided) => (
+                            <div
+                                {...provided.droppableProps}
+                                ref={provided.innerRef}
+                                className="drag-container"
+                            >
+                                <ListGroup>
+                                    {washItems.map((item, index) => (
+                                        <Draggable
+                                            key={item.id}
+                                            draggableId={item.id}
+                                            index={index}
+                                        >
+                                            {(provided, snapshot) => (
+                                                <ListGroup.Item
+                                                    ref={provided.innerRef}
+                                                    {...provided.draggableProps}
+                                                    className={`mb-2 ${snapshot.isDragging ? 'dragging' : ''}`}
+                                                >
+                                                    <div className="d-flex align-items-center">
+                                                        <div
+                                                            {...provided.dragHandleProps}
+                                                            className="drag-handle"
+                                                        >
+                                                            <FaBars />
+                                                        </div>
+                                                        <div className="flex-grow-1">
+                                                            <div className="fw-bold">{item.name}</div>
+                                                            <div className="text-muted">
+                                                                NT$ {item.price}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <Button
+                                                                variant="outline-primary"
+                                                                size="sm"
+                                                                className="me-2"
+                                                                onClick={() => handleEditItem(item)}
+                                                            >
+                                                                編輯
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={() => handleDeleteItem(item.id)}
+                                                            >
+                                                                刪除
+                                                            </Button>
+                                                        </div>
                                                     </div>
-                                                    <span>{formatItemDisplay(item)}</span>
-                                                </div>
-                                                <div>
-                                                    <Button
-                                                        variant="outline-primary"
-                                                        size="sm"
-                                                        className="me-2"
-                                                        onClick={() => {
-                                                            setSelectedItemIndex(index);
-                                                            setItemName(item.name);
-                                                            setItemPrice(item.price.toString());
-                                                            setError('');
-                                                            setShowEditModal(true);
-                                                        }}
-                                                    >
-                                                        編輯
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline-danger"
-                                                        size="sm"
-                                                        onClick={() => deleteWashItem(index)}
-                                                    >
-                                                        刪除
-                                                    </Button>
-                                                </div>
-                                            </ListGroup.Item>
-                                        )}
-                                    </Draggable>
-                                ))}
-                                {provided.placeholder}
-                            </ListGroup>
-                        </div>
-                    )}
-                </StrictModeDroppable>
-            </DragDropContext>
+                                                </ListGroup.Item>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+                                </ListGroup>
+                            </div>
+                        )}
+                    </StrictModeDroppable>
+                </DragDropContext>
+            </div>
 
-            {washItems.length === 0 && (
-                <div className="text-center p-3 bg-light rounded">
-                    尚未添加任何洗車項目
-                </div>
-            )}
-
-            {/* 編輯洗車項目對話框 */}
+            {/* 編輯 Modal */}
             <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>編輯項目</Modal.Title>
+                    <Modal.Title>編輯服務項目</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <Form.Group className="mb-3">
-                        <Form.Label>服務項目名稱:</Form.Label>
-                        <Form.Control
-                            type="text"
-                            value={itemName}
-                            onChange={(e) => setItemName(e.target.value)}
-                            isInvalid={!!error}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                            {error}
-                        </Form.Control.Feedback>
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                        <Form.Label>服務金額:</Form.Label>
-                        <Form.Control
-                            type="number"
-                            value={itemPrice}
-                            onChange={(e) => setItemPrice(e.target.value)}
-                            placeholder="請輸入服務金額"
-                        />
-                    </Form.Group>
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>項目名稱</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={editingItem?.name || ''}
+                                onChange={(e) =>
+                                    setEditingItem({ ...editingItem, name: e.target.value })
+                                }
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>價格</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={editingItem?.price || ''}
+                                onChange={(e) =>
+                                    setEditingItem({ ...editingItem, price: e.target.value })
+                                }
+                            />
+                        </Form.Group>
+                    </Form>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowEditModal(false)}>
                         取消
                     </Button>
-                    <Button variant="primary" onClick={editWashItem}>
+                    <Button variant="primary" onClick={handleUpdateItem}>
                         儲存
                     </Button>
                 </Modal.Footer>
             </Modal>
 
-            {/* 通知組件 */}
+            {/* Snackbar */}
             <Snackbar
                 open={snackbar.open}
-                autoHideDuration={5000}
+                autoHideDuration={3000}
                 onClose={handleCloseSnackbar}
                 anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
             >

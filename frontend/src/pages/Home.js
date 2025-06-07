@@ -45,6 +45,7 @@ function Home() {
     const [showVehicleManager, setShowVehicleManager] = useState(false);
     const [showAddRecord, setShowAddRecord] = useState(false);
     const [showWashItemManager, setShowWashItemManager] = useState(false);
+    const [editingRecord, setEditingRecord] = useState(null);
 
     // 添加通知狀態
     const [snackbar, setSnackbar] = useState({
@@ -874,6 +875,22 @@ function Home() {
         navigate('/formula-calculator');
     };
 
+    // 處理編輯記錄
+    const handleEdit = (record, companyId, vehicleId) => {
+        setEditingRecord({
+            ...record,
+            companyId,
+            vehicleId
+        });
+        setShowAddRecord(true);
+    };
+
+    // 清除編輯狀態
+    const handleCloseAddRecord = () => {
+        setShowAddRecord(false);
+        setEditingRecord(null);
+    };
+
     return (
         <>
             {/* 導航欄 */}
@@ -1251,7 +1268,15 @@ function Home() {
                                             <td className="text-end">${calculateTotal(record.items).toLocaleString()}</td>
                                             <td>
                                                 <Button
-                                                    variant="danger"
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    className="me-2"
+                                                    onClick={() => handleEdit(record, record.companyId, record.vehicleId)}
+                                                >
+                                                    編輯
+                                                </Button>
+                                                <Button
+                                                    variant="outline-danger"
                                                     size="sm"
                                                     onClick={() => deleteRecord(record)}
                                                 >
@@ -1320,7 +1345,15 @@ function Home() {
 
                                             <div className="record-card-action">
                                                 <Button
-                                                    variant="danger"
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    className="me-2"
+                                                    onClick={() => handleEdit(record, record.companyId, record.vehicleId)}
+                                                >
+                                                    編輯
+                                                </Button>
+                                                <Button
+                                                    variant="outline-danger"
                                                     size="sm"
                                                     onClick={() => deleteRecord(record)}
                                                 >
@@ -1395,23 +1428,24 @@ function Home() {
                             </Modal.Body>
                         </Modal>
 
-                        {/* 新增紀錄對話框 */}
+                        {/* 新增/編輯記錄對話框 */}
                         <Modal
                             show={showAddRecord}
-                            onHide={() => setShowAddRecord(false)}
+                            onHide={handleCloseAddRecord}
                             size="lg"
                             fullscreen={isMobile}
                         >
                             <Modal.Header closeButton>
-                                <Modal.Title>新增紀錄</Modal.Title>
+                                <Modal.Title>{editingRecord ? '編輯紀錄' : '新增紀錄'}</Modal.Title>
                             </Modal.Header>
                             <Modal.Body>
                                 <AddRecordForm
                                     data={data}
                                     setData={setData}
                                     database={database}
-                                    companyId={selectedCompany !== 'all' ? selectedCompany : ''}
-                                    vehicleId={selectedVehicle !== 'all' ? selectedVehicle : ''}
+                                    companyId={editingRecord ? editingRecord.companyId : (selectedCompany !== 'all' ? selectedCompany : '')}
+                                    vehicleId={editingRecord ? editingRecord.vehicleId : (selectedVehicle !== 'all' ? selectedVehicle : '')}
+                                    editingRecord={editingRecord}
                                     onSave={onSave}
                                 />
                             </Modal.Body>

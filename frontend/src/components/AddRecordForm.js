@@ -26,7 +26,7 @@ const formatWashItemPrice = (washItem) => {
     }
 };
 
-const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }) => {
+const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingRecord, onSave }) => {
     // 狀態管理
     const [selectedCompanyId, setSelectedCompanyId] = useState(companyId || '');
     const [selectedVehicleId, setSelectedVehicleId] = useState(vehicleId || '');
@@ -219,7 +219,12 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
 
     // 處理服務項目多選
     const handleWashItemsChange = (selectedOptions) => {
-        const newSelectedItems = selectedOptions ? selectedOptions.map(option => option.item) : [];
+        const newSelectedItems = selectedOptions ? selectedOptions.map(option => {
+            if (typeof option.item === 'string') {
+                return { name: option.item, price: 0 };
+            }
+            return option.item;
+        }) : [];
         setSelectedItems(newSelectedItems);
     };
 
@@ -268,7 +273,28 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
         return selectedItemsTotal + customItemsTotal;
     };
 
-    // 儲存記錄
+    // 初始化表單數據
+    useEffect(() => {
+        if (editingRecord) {
+            setSelectedCompanyId(editingRecord.companyId);
+            setSelectedVehicleId(editingRecord.vehicleId);
+            setDate(new Date(editingRecord.date));
+            setPaymentType(editingRecord.payment_type);
+
+            // 設置服務項目
+            const selectedServiceItems = editingRecord.items.filter(item => !item.isCustom);
+            setSelectedItems(selectedServiceItems);
+
+            // 設置自訂項目
+            const customServiceItems = editingRecord.items.filter(item => item.isCustom);
+            setCustomItems(customServiceItems);
+
+            // 設置備註
+            setRemarks(editingRecord.remarks || '');
+        }
+    }, [editingRecord]);
+
+    // 修改儲存記錄函數
     const saveRecord = async () => {
         if (!selectedCompanyId) {
             setError('請選擇公司');
@@ -292,7 +318,6 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
         setIsSaving(true);
 
         try {
-            // 準備新記錄數據
             const dateString = date.toISOString().split('T')[0];
             const allItems = [...selectedItems, ...customItems];
 
@@ -300,7 +325,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
             const records = data.companies[selectedCompanyId]?.vehicles[selectedVehicleId]?.records || [];
 
             // 建立時間戳 (毫秒)
-            const timestamp = Date.now();
+            const timestamp = editingRecord ? editingRecord.timestamp : Date.now();
 
             // 準備新記錄
             const newRecord = {
@@ -308,27 +333,37 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                 payment_type: paymentType,
                 items: allItems,
                 remarks: remarks.trim(),
-                timestamp: timestamp // 添加時間戳
+                timestamp: timestamp
             };
 
-            // 添加新記錄
-            const updatedRecords = [...records, newRecord];
+            let updatedRecords;
+            if (editingRecord) {
+                // 更新現有記錄
+                updatedRecords = records.map(record =>
+                    record.timestamp === editingRecord.timestamp ? newRecord : record
+                );
+            } else {
+                // 添加新記錄
+                updatedRecords = [...records, newRecord];
+            }
 
             // 更新 Firebase
             await set(ref(database, `companies/${selectedCompanyId}/vehicles/${selectedVehicleId}/records`), updatedRecords);
 
-            // 更新本地狀態 (重要：避免觸發頁面重新載入)
+            // 更新本地狀態
             const newData = { ...data };
             newData.companies[selectedCompanyId].vehicles[selectedVehicleId].records = updatedRecords;
             setData(newData);
 
             // 清除表單
-            setDate(new Date());
-            setPaymentType('receivable');
-            setSelectedItems([]);
-            setCustomItems([]);
-            setNewCustomItem({ name: '', price: '' });
-            setRemarks('');
+            if (!editingRecord) {
+                setDate(new Date());
+                setPaymentType('receivable');
+                setSelectedItems([]);
+                setCustomItems([]);
+                setNewCustomItem({ name: '', price: '' });
+                setRemarks('');
+            }
             setError('');
 
             // 創建一個格式化的記錄用於前端顯示
@@ -344,20 +379,20 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                 }
             };
 
-            // 通知父元件，傳遞新紀錄和reload=false，避免重新載入
+            // 通知父元件
             onSave({
                 reload: false,
                 newRecord: formattedRecord,
                 updatedData: newData,
                 source: 'AddRecordForm',
-                shouldClearSearch: true
+                shouldClearSearch: !editingRecord
             });
 
-            showNotification('記錄已成功儲存', 'success');
+            showNotification(editingRecord ? '記錄已成功更新！' : '記錄已成功儲存', 'success');
         } catch (error) {
-            console.error('儲存記錄時發生錯誤:', error);
-            setError(`儲存記錄時發生錯誤: ${error.message}`);
-            showNotification(`儲存記錄時發生錯誤: ${error.message}`, 'danger');
+            console.error(editingRecord ? '更新記錄時發生錯誤:' : '儲存記錄時發生錯誤:', error);
+            setError(`${editingRecord ? '更新' : '儲存'}記錄時發生錯誤: ${error.message}`);
+            showNotification(`${editingRecord ? '更新' : '儲存'}記錄時發生錯誤: ${error.message}`, 'danger');
         } finally {
             setIsSaving(false);
         }
@@ -366,10 +401,19 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
     return (
         <div className="add-record-form">
             <Card className="border-0 shadow-sm">
-                <Card.Body className="p-3">
+                <Card.Body className="p-3" style={{
+                    maxHeight: 'calc(100vh - 120px)',
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    msOverflowStyle: '-ms-autohiding-scrollbar'
+                }}>
                     <Form onSubmit={(e) => e.preventDefault()}>
                         {/* 基本資訊區塊 */}
-                        <div style={styles.cardSection}>
+                        <div style={{
+                            ...styles.cardSection,
+                            position: 'relative',
+                            zIndex: 3
+                        }}>
                             <h6 className="mb-3 text-muted">基本資訊</h6>
 
                             {/* 公司選擇 */}
@@ -457,7 +501,11 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                         </div>
 
                         {/* 服務項目區塊 */}
-                        <div style={styles.cardSection}>
+                        <div style={{
+                            ...styles.cardSection,
+                            position: 'relative',
+                            zIndex: 2
+                        }}>
                             <h6 className="mb-3 text-muted">服務項目</h6>
 
                             {/* 使用 Select 元件替換原本的 ListGroup */}
@@ -481,78 +529,6 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                                 components={{ ClearIndicator }}
                             />
 
-                            {/* 自訂項目區塊 */}
-                            <div className="mt-4">
-                                <h6 className="mb-3 text-muted">校正項目</h6>
-
-                                {/* 顯示已添加的自訂項目 */}
-                                {customItems.length > 0 && (
-                                    <div className="mb-3">
-                                        {customItems.map((item, index) => (
-                                            <div key={index} style={styles.customItem} className="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <div className="fw-bold">{item.name}</div>
-                                                    <div className="text-primary">${item.price}</div>
-                                                </div>
-                                                <Button
-                                                    variant="outline-danger"
-                                                    size="sm"
-                                                    onClick={() => removeCustomItem(index)}
-                                                    className="rounded-circle p-0"
-                                                    style={{ width: '32px', height: '32px' }}
-                                                >
-                                                    <FaTrash size={14} />
-                                                </Button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* 添加新自訂項目的表單 */}
-                                <div style={styles.customItem}>
-                                    <Row className="align-items-end g-2">
-                                        <Col xs={12} sm={5}>
-                                            <Form.Group>
-                                                <Form.Label style={{ fontSize: '0.875rem' }}>項目名稱</Form.Label>
-                                                <Form.Control
-                                                    type="text"
-                                                    placeholder="輸入名稱"
-                                                    value={newCustomItem.name}
-                                                    onChange={(e) => setNewCustomItem({ ...newCustomItem, name: e.target.value })}
-                                                    size="sm"
-                                                />
-                                            </Form.Group>
-                                        </Col>
-                                        <Col xs={7} sm={4}>
-                                            <Form.Group>
-                                                <Form.Label style={{ fontSize: '0.875rem' }}>金額</Form.Label>
-                                                <InputGroup size="sm">
-                                                    <InputGroup.Text>$</InputGroup.Text>
-                                                    <Form.Control
-                                                        type="number"
-                                                        placeholder="0"
-                                                        value={newCustomItem.price}
-                                                        onChange={(e) => setNewCustomItem({ ...newCustomItem, price: e.target.value })}
-                                                    />
-                                                </InputGroup>
-                                            </Form.Group>
-                                        </Col>
-                                        <Col xs={5} sm={3}>
-                                            <Button
-                                                variant="primary"
-                                                size="sm"
-                                                onClick={(event) => addCustomItem(event)}
-                                                className="w-100"
-                                                disabled={!newCustomItem.name.trim()}
-                                                type="button"
-                                            >
-                                                <FaPlus className="me-1" /> 添加
-                                            </Button>
-                                        </Col>
-                                    </Row>
-                                </div>
-                            </div>
-
                             {/* 金額總計 */}
                             <div className="mt-4 d-flex justify-content-between align-items-center p-2 bg-white rounded">
                                 <h6 className="mb-0">金額總計</h6>
@@ -563,6 +539,81 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                             {error === '請至少選擇一個服務項目或添加自訂項目' && (
                                 <div className="alert alert-danger mt-2 mb-0 py-2">{error}</div>
                             )}
+                        </div>
+
+                        {/* 自訂項目區塊 */}
+                        <div className="mt-4" style={{
+                            position: 'relative',
+                            zIndex: 1
+                        }}>
+                            <h6 className="mb-3 text-muted">校正項目</h6>
+
+                            {/* 顯示已添加的自訂項目 */}
+                            {customItems.length > 0 && (
+                                <div className="mb-3">
+                                    {customItems.map((item, index) => (
+                                        <div key={index} style={styles.customItem} className="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <div className="fw-bold">{item.name}</div>
+                                                <div className="text-primary">${item.price}</div>
+                                            </div>
+                                            <Button
+                                                variant="outline-danger"
+                                                size="sm"
+                                                onClick={() => removeCustomItem(index)}
+                                                className="rounded-circle p-0"
+                                                style={{ width: '32px', height: '32px' }}
+                                            >
+                                                <FaTrash size={14} />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 添加新自訂項目的表單 */}
+                            <div style={styles.customItem}>
+                                <Row className="align-items-end g-2">
+                                    <Col xs={12} sm={5}>
+                                        <Form.Group>
+                                            <Form.Label style={{ fontSize: '0.875rem' }}>項目名稱</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                placeholder="輸入名稱"
+                                                value={newCustomItem.name}
+                                                onChange={(e) => setNewCustomItem({ ...newCustomItem, name: e.target.value })}
+                                                size="sm"
+                                            />
+                                        </Form.Group>
+                                    </Col>
+                                    <Col xs={7} sm={4}>
+                                        <Form.Group>
+                                            <Form.Label style={{ fontSize: '0.875rem' }}>金額</Form.Label>
+                                            <InputGroup size="sm">
+                                                <InputGroup.Text>$</InputGroup.Text>
+                                                <Form.Control
+                                                    type="number"
+                                                    placeholder="0"
+                                                    value={newCustomItem.price}
+                                                    onChange={(e) => setNewCustomItem({ ...newCustomItem, price: e.target.value })}
+                                                />
+                                            </InputGroup>
+                                        </Form.Group>
+                                    </Col>
+                                    <Col xs={5} sm={3}>
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={(event) => addCustomItem(event)}
+                                            className="w-100"
+                                            disabled={!newCustomItem.name.trim()}
+                                            type="button"
+                                        >
+                                            <FaPlus className="me-1" /> 添加
+                                        </Button>
+                                    </Col>
+                                </Row>
+                            </div>
                         </div>
 
                         {/* 備註 */}
@@ -587,7 +638,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, onSave }
                         <div className="d-grid">
                             <Button
                                 variant="primary"
-                                onClick={(event) => saveRecord(event)}
+                                onClick={saveRecord}
                                 style={styles.submitButton}
                                 size="lg"
                                 type="button"
