@@ -20,14 +20,8 @@ let auth;
 
 try {
     app = initializeApp(firebaseConfig);
-    console.log("Firebase 初始化成功:", app.name);
-
     database = getDatabase(app);
     auth = getAuth(app);
-
-    // 檢查身份驗證是否正確初始化
-    console.log("Firebase Auth 配置:", auth.config);
-    console.log("Firebase 當前項目 ID:", app.options.projectId);
 } catch (error) {
     console.error("Firebase 初始化失敗:", error);
 }

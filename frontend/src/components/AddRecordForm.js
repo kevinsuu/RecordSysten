@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Row, Col, InputGroup, Card, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, onValue } from 'firebase/database';
 import DatePicker from 'react-datepicker';
 import { FaPlus, FaTrash, FaCalendarAlt, FaTimes } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
@@ -39,6 +39,9 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
     const [error, setError] = useState('');
     const [washItems, setWashItems] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [adjustmentItems, setAdjustmentItems] = useState([]); // 新增校正項目的state
+    const [adjustmentName, setAdjustmentName] = useState('');
+    const [adjustmentAmount, setAdjustmentAmount] = useState('');
 
     // 通知狀態
     const [snackbar, setSnackbar] = useState({
@@ -128,22 +131,27 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
 
     // 載入洗車項目
     useEffect(() => {
-        const loadWashItems = async () => {
-            try {
-                const washItemsRef = ref(database, 'wash_items');
-                const snapshot = await get(washItemsRef);
-                if (snapshot.exists()) {
-                    const items = snapshot.val() || [];
-                    setWashItems(items);
-                } else {
-                    setWashItems([]);
-                }
-            } catch (error) {
-                console.error('載入洗車項目時發生錯誤:', error);
-            }
-        };
+        const washItemsRef = ref(database, 'wash_items');
 
-        loadWashItems();
+        const unsubscribe = onValue(washItemsRef, (snapshot) => {
+
+            if (snapshot.exists()) {
+                const items = snapshot.val();
+                const itemsArray = Object.entries(items).map(([id, item]) => ({
+                    id,
+                    ...item
+                }));
+                setWashItems(itemsArray);
+            } else {
+                setWashItems([]);
+            }
+        }, (error) => {
+            console.error('載入服務項目時發生錯誤:', error);
+            showNotification('載入服務項目失敗', 'error');
+            setWashItems([]);
+        });
+
+        return () => unsubscribe();
     }, [database]);
 
     // 轉換公司數據為 react-select 格式
@@ -258,19 +266,31 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
         setCustomItems(newCustomItems);
     };
 
-    // 計算總金額
+    // 處理添加校正項目
+    const handleAddAdjustment = () => {
+        if (!adjustmentName.trim() || !adjustmentAmount) return;
+
+        const newAdjustment = {
+            id: Date.now().toString(),
+            name: adjustmentName.trim(),
+            price: parseFloat(adjustmentAmount)
+        };
+
+        setAdjustmentItems([...adjustmentItems, newAdjustment]);
+        setAdjustmentName('');
+        setAdjustmentAmount('');
+    };
+
+    // 處理刪除校正項目
+    const handleDeleteAdjustment = (id) => {
+        setAdjustmentItems(adjustmentItems.filter(item => item.id !== id));
+    };
+
+    // 計算總金額（包含服務項目和校正項目）
     const calculateTotal = () => {
-        // 計算已選服務項目的總金額
-        const selectedItemsTotal = selectedItems.reduce((total, item) => {
-            return total + (parseFloat(item.price) || 0);
-        }, 0);
-
-        // 計算自訂項目的總金額
-        const customItemsTotal = customItems.reduce((total, item) => {
-            return total + (parseFloat(item.price) || 0);
-        }, 0);
-
-        return selectedItemsTotal + customItemsTotal;
+        const servicesTotal = selectedItems.reduce((sum, item) => sum + item.price, 0);
+        const adjustmentsTotal = adjustmentItems.reduce((sum, item) => sum + item.price, 0);
+        return servicesTotal + adjustmentsTotal;
     };
 
     // 初始化表單數據
@@ -319,7 +339,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
 
         try {
             const dateString = date.toISOString().split('T')[0];
-            const allItems = [...selectedItems, ...customItems];
+            const allItems = [...selectedItems, ...customItems, ...adjustmentItems];
 
             // 獲取當前記錄
             const records = data.companies[selectedCompanyId]?.vehicles[selectedVehicleId]?.records || [];
@@ -361,6 +381,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                 setPaymentType('receivable');
                 setSelectedItems([]);
                 setCustomItems([]);
+                setAdjustmentItems([]);
                 setNewCustomItem({ name: '', price: '' });
                 setRemarks('');
             }
@@ -396,6 +417,52 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
         } finally {
             setIsSaving(false);
         }
+    };
+
+    // 處理項目點擊
+    const handleItemClick = (selectedItem) => {
+        // 檢查項目是否已經存在
+        const existingItemIndex = selectedItems.findIndex(item => item.id === selectedItem.id);
+
+        if (existingItemIndex >= 0) {
+            // 如果項目已存在，增加數量
+            const newItems = [...selectedItems];
+            newItems[existingItemIndex] = {
+                ...newItems[existingItemIndex],
+                quantity: (newItems[existingItemIndex].quantity || 1) + 1,
+                price: selectedItem.price * ((newItems[existingItemIndex].quantity || 1) + 1)
+            };
+            setSelectedItems(newItems);
+        } else {
+            // 如果是新項目，添加到列表
+            setSelectedItems([...selectedItems, {
+                ...selectedItem,
+                quantity: 1,
+                originalPrice: selectedItem.price,
+                price: selectedItem.price
+            }]);
+        }
+    };
+
+    // 處理項目刪除
+    const handleItemDelete = (itemId) => {
+        setSelectedItems(selectedItems.filter(item => item.id !== itemId));
+    };
+
+    // 處理數量變更
+    const handleQuantityChange = (itemId, change) => {
+        const newItems = selectedItems.map(item => {
+            if (item.id === itemId) {
+                const newQuantity = Math.max(1, (item.quantity || 1) + change); // 確保數量不小於1
+                return {
+                    ...item,
+                    quantity: newQuantity,
+                    price: item.originalPrice * newQuantity
+                };
+            }
+            return item;
+        });
+        setSelectedItems(newItems);
     };
 
     return (
@@ -508,26 +575,63 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                         }}>
                             <h6 className="mb-3 text-muted">服務項目</h6>
 
-                            {/* 使用 Select 元件替換原本的 ListGroup */}
-                            <Select
-                                options={washItemOptions}
-                                value={washItemOptions.filter(option =>
-                                    selectedItems.some(item =>
-                                        (typeof item === 'string' ? item : item.name) ===
-                                        (typeof option.item === 'string' ? option.item : option.item.name)
-                                    )
-                                )}
-                                onChange={handleWashItemsChange}
-                                isMulti
-                                placeholder="選擇或搜尋服務項目..."
-                                noOptionsMessage={() => "找不到符合的服務項目"}
-                                styles={selectStyles}
-                                menuIsOpen={isMenuOpen}
-                                onMenuOpen={() => setIsMenuOpen(true)}
-                                onMenuClose={() => setIsMenuOpen(false)}
-                                closeMenuOnSelect={false}
-                                components={{ ClearIndicator }}
-                            />
+                            {/* 已選項目顯示 */}
+                            <div className="selected-items-container mb-3">
+                                {selectedItems.map((item, index) => (
+                                    <div
+                                        key={`${item.id}-${index}`}
+                                        className="selected-item-tag d-inline-flex align-items-center me-2 mb-2 px-3 py-2 bg-light rounded"
+                                    >
+                                        <span>{item.name} × {item.quantity}</span>
+                                        <div className="ms-2 d-flex align-items-center">
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                className="p-0 px-2 me-1"
+                                                onClick={() => handleQuantityChange(item.id, -1)}
+                                            >
+                                                -
+                                            </Button>
+                                            <span className="mx-1">{item.quantity}</span>
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                className="p-0 px-2 ms-1 me-2"
+                                                onClick={() => handleQuantityChange(item.id, 1)}
+                                            >
+                                                +
+                                            </Button>
+                                            <span className="me-2">${item.price}</span>
+                                            <Button
+                                                variant="link"
+                                                className="p-0 text-danger"
+                                                onClick={() => handleItemDelete(item.id)}
+                                                style={{ textDecoration: 'none' }}
+                                            >
+                                                ×
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 服務項目選擇區域 */}
+                            <div
+                                className="wash-items-container border rounded p-2"
+                                style={{ maxHeight: '200px', overflowY: 'auto' }}
+                            >
+                                {Array.isArray(washItems) && washItems.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="wash-item py-2 px-3 mb-1 d-flex justify-content-between align-items-center hover-highlight cursor-pointer"
+                                        onClick={() => handleItemClick(item)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        <span>{item.name}</span>
+                                        <span>${item.price}</span>
+                                    </div>
+                                ))}
+                            </div>
 
                             {/* 金額總計 */}
                             <div className="mt-4 d-flex justify-content-between align-items-center p-2 bg-white rounded">
@@ -633,6 +737,8 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                         {error && error !== '請選擇公司' && error !== '請選擇車輛' && error !== '請至少選擇一個服務項目或添加自訂項目' && (
                             <div className="alert alert-danger mb-3 py-2">{error}</div>
                         )}
+
+
 
                         {/* 提交按鈕 */}
                         <div className="d-grid">
