@@ -436,8 +436,15 @@ function Home() {
         if (!items || !items.length) return 0;
 
         return items.reduce((total, item) => {
-            if (typeof item === 'string') return total;
-            return total + (item.price || 0);
+            if (typeof item === 'string') {
+                // 如果是舊格式（純字串），返回 0
+                return total;
+            }
+            // 確保 quantity 有值，如果沒有則預設為 1
+            const quantity = item.quantity || 1;
+            // 確保 price 有值，如果沒有則預設為 0
+            const price = item.price || 0;
+            return total + (price * quantity);
         }, 0);
     };
 
@@ -1261,8 +1268,11 @@ function Home() {
                                                 {record.items.map((item, idx) => {
                                                     const itemName = typeof item === 'string' ? item : item.name;
                                                     const itemPrice = typeof item === 'string' ? 0 : item.price;
+                                                    const quantity = typeof item === 'string' ? 1 : (item.quantity || 1);  // 處理舊記錄
                                                     return (
-                                                        <div key={idx} className={isMobile ? "item-mobile" : ""}>• {itemName} - ${itemPrice}</div>
+                                                        <div key={idx} className={isMobile ? "item-mobile" : ""}>
+                                                            • {itemName} {quantity > 1 ? `x${quantity}` : ''} - ${itemPrice * quantity}
+                                                        </div>
                                                     );
                                                 })}
                                             </td>
@@ -1333,9 +1343,10 @@ function Home() {
                                                 {record.items.map((item, idx) => {
                                                     const itemName = typeof item === 'string' ? item : item.name;
                                                     const itemPrice = typeof item === 'string' ? 0 : item.price;
+                                                    const quantity = typeof item === 'string' ? 1 : (item.quantity || 1);  // 處理舊記錄
                                                     return (
                                                         <div key={idx} className="record-card-item">
-                                                            • {itemName} - ${itemPrice}
+                                                            • {itemName} {quantity > 1 ? `x${quantity}` : ''} - ${itemPrice * quantity}
                                                         </div>
                                                     );
                                                 })}

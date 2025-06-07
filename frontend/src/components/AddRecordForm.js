@@ -288,9 +288,24 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
 
     // 計算總金額（包含服務項目和校正項目）
     const calculateTotal = () => {
-        const servicesTotal = selectedItems.reduce((sum, item) => sum + item.price, 0);
-        const adjustmentsTotal = adjustmentItems.reduce((sum, item) => sum + item.price, 0);
-        return servicesTotal + adjustmentsTotal;
+        // 計算服務項目總金額
+        const servicesTotal = selectedItems.reduce((sum, item) => {
+            const quantity = item.quantity || 1;  // 如果沒有數量，預設為 1
+            const price = item.originalPrice || item.price || 0;  // 使用原始價格
+            return sum + (price * quantity);
+        }, 0);
+
+        // 計算自訂項目總金額
+        const customTotal = customItems.reduce((sum, item) => {
+            return sum + (item.price || 0);
+        }, 0);
+
+        // 計算校正項目總金額
+        const adjustmentsTotal = adjustmentItems.reduce((sum, item) => {
+            return sum + (item.price || 0);
+        }, 0);
+
+        return servicesTotal + customTotal + adjustmentsTotal;
     };
 
     // 初始化表單數據
@@ -358,10 +373,14 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
 
             let updatedRecords;
             if (editingRecord) {
-                // 更新現有記錄
-                updatedRecords = records.map(record =>
-                    record.timestamp === editingRecord.timestamp ? newRecord : record
-                );
+                // 更新現有記錄，確保只更新一筆
+                const recordIndex = records.findIndex(record => record.timestamp === editingRecord.timestamp);
+                if (recordIndex !== -1) {
+                    updatedRecords = [...records];
+                    updatedRecords[recordIndex] = newRecord;
+                } else {
+                    updatedRecords = [...records, newRecord];
+                }
             } else {
                 // 添加新記錄
                 updatedRecords = [...records, newRecord];
@@ -422,16 +441,17 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
 
     // 處理項目點擊
     const handleItemClick = (selectedItem) => {
-        // 檢查項目是否已經存在
+        // 使用 id 來識別項目
         const existingItemIndex = selectedItems.findIndex(item => item.id === selectedItem.id);
 
         if (existingItemIndex >= 0) {
             // 如果項目已存在，增加數量
             const newItems = [...selectedItems];
+            const currentQuantity = newItems[existingItemIndex].quantity || 1;
             newItems[existingItemIndex] = {
                 ...newItems[existingItemIndex],
-                quantity: (newItems[existingItemIndex].quantity || 1) + 1,
-                price: selectedItem.price * ((newItems[existingItemIndex].quantity || 1) + 1)
+                quantity: currentQuantity + 1,
+                originalPrice: selectedItem.price
             };
             setSelectedItems(newItems);
         } else {
@@ -439,31 +459,30 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
             setSelectedItems([...selectedItems, {
                 ...selectedItem,
                 quantity: 1,
-                originalPrice: selectedItem.price,
-                price: selectedItem.price
+                originalPrice: selectedItem.price
             }]);
         }
+    };
+
+    // 處理數量變更
+    const handleQuantityChange = (itemId, change) => {
+        setSelectedItems(prevItems =>
+            prevItems.map(item => {
+                if (item.id === itemId || (item.name === itemId && !item.id)) {
+                    const newQuantity = Math.max(1, (item.quantity || 1) + change);
+                    return {
+                        ...item,
+                        quantity: newQuantity
+                    };
+                }
+                return item;
+            })
+        );
     };
 
     // 處理項目刪除
     const handleItemDelete = (itemId) => {
         setSelectedItems(selectedItems.filter(item => item.id !== itemId));
-    };
-
-    // 處理數量變更
-    const handleQuantityChange = (itemId, change) => {
-        const newItems = selectedItems.map(item => {
-            if (item.id === itemId) {
-                const newQuantity = Math.max(1, (item.quantity || 1) + change); // 確保數量不小於1
-                return {
-                    ...item,
-                    quantity: newQuantity,
-                    price: item.originalPrice * newQuantity
-                };
-            }
-            return item;
-        });
-        setSelectedItems(newItems);
     };
 
     return (
@@ -578,35 +597,35 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
 
                             {/* 已選項目顯示 */}
                             <div className="selected-items-container mb-3">
-                                {selectedItems.map((item, index) => (
+                                {selectedItems.map((item) => (
                                     <div
-                                        key={`${item.id}-${index}`}
+                                        key={item.id || item.name}
                                         className="selected-item-tag d-inline-flex align-items-center me-2 mb-2 px-3 py-2 bg-light rounded"
                                     >
-                                        <span>{item.name} × {item.quantity}</span>
+                                        <span>{item.name}</span>
                                         <div className="ms-2 d-flex align-items-center">
                                             <Button
                                                 variant="outline-secondary"
                                                 size="sm"
                                                 className="p-0 px-2 me-1"
-                                                onClick={() => handleQuantityChange(item.id, -1)}
+                                                onClick={() => handleQuantityChange(item.id || item.name, -1)}
                                             >
                                                 -
                                             </Button>
-                                            <span className="mx-1">{item.quantity}</span>
+                                            <span className="mx-1">{item.quantity || 1}</span>
                                             <Button
                                                 variant="outline-secondary"
                                                 size="sm"
                                                 className="p-0 px-2 ms-1 me-2"
-                                                onClick={() => handleQuantityChange(item.id, 1)}
+                                                onClick={() => handleQuantityChange(item.id || item.name, 1)}
                                             >
                                                 +
                                             </Button>
-                                            <span className="me-2">${item.price}</span>
+                                            <span className="me-2">${(item.originalPrice || item.price) * (item.quantity || 1)}</span>
                                             <Button
                                                 variant="link"
                                                 className="p-0 text-danger"
-                                                onClick={() => handleItemDelete(item.id)}
+                                                onClick={() => handleItemDelete(item.id || item.name)}
                                                 style={{ textDecoration: 'none' }}
                                             >
                                                 ×
@@ -738,8 +757,6 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                         {error && error !== '請選擇公司' && error !== '請選擇車輛' && error !== '請至少選擇一個服務項目或添加自訂項目' && (
                             <div className="alert alert-danger mb-3 py-2">{error}</div>
                         )}
-
-
 
                         {/* 提交按鈕 */}
                         <div className="d-grid">
