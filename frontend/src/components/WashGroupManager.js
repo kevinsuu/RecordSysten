@@ -544,144 +544,145 @@ const WashGroupManager = ({ database, onSave }) => {
                 </Row>
             </Form>
 
-            {/* 分組和項目列表 */}
-            <div className="d-flex flex-column flex-md-row" style={{ flex: 1, gap: '15px', overflowY: 'auto' }}>
-                {/* 分組列表 - 改進樣式 */}
-                <div className="mb-3 mb-md-0" style={{ width: '100%', minWidth: '180px', maxWidth: '220px', flex: '0 0 auto' }}>
-                    <h5 className="mb-3 d-flex align-items-center">
-                        <FaLayerGroup className="me-2" style={{ color: '#007bff' }} />
-                        分組列表
-                    </h5>
-                    <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-                        <StrictModeDroppable droppableId="wash-groups">
-                            {(provided) => (
-                                <div
-                                    ref={provided.innerRef}
-                                    {...provided.droppableProps}
-                                    style={{ minHeight: '100%' }}
-                                >
-                                    <ListGroup>
-                                        {washGroups.map((group, index) => (
-                                            <Draggable
-                                                key={group.id}
-                                                draggableId={group.id}
-                                                index={index}
-                                            >
-                                                {(provided, snapshot) => (
-                                                    <ListGroup.Item
-                                                        ref={provided.innerRef}
-                                                        {...provided.draggableProps}
-                                                        action
-                                                        active={selectedGroup && selectedGroup.id === group.id}
-                                                        onClick={() => setSelectedGroup(group)}
-                                                        className="mb-2 position-relative"
-                                                        style={{
-                                                            ...provided.draggableProps.style,
-                                                            backgroundColor: selectedGroup && selectedGroup.id === group.id ? '#007bff' : '#f8f9fa',
-                                                            color: selectedGroup && selectedGroup.id === group.id ? 'white' : 'inherit',
-                                                            borderRadius: '8px',
-                                                            padding: '10px 12px',
-                                                            border: selectedGroup && selectedGroup.id === group.id ? 'none' : '1px solid #dee2e6',
-                                                            boxShadow: snapshot.isDragging ? '0 4px 8px rgba(0,0,0,0.1)' : (selectedGroup && selectedGroup.id === group.id ? '0 2px 5px rgba(0,123,255,0.3)' : 'none')
-                                                        }}
-                                                    >
-                                                        <div
-                                                            {...provided.dragHandleProps}
-                                                            className="position-absolute"
+            {/* 分組和項目列表 - 使用單一滾動區域 */}
+            <div style={{ flex: 1, overflow: 'auto' }}>
+                <div className="d-flex flex-column flex-md-row" style={{ gap: '15px' }}>
+                    {/* 分組列表 */}
+                    <div className="mb-3 mb-md-0" style={{ width: '100%', minWidth: '180px', maxWidth: '220px', flex: '0 0 auto' }}>
+                        <h5 className="mb-3 d-flex align-items-center">
+                            <FaLayerGroup className="me-2" style={{ color: '#007bff' }} />
+                            分組列表
+                        </h5>
+                        <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
+                            <StrictModeDroppable droppableId="wash-groups">
+                                {(provided) => (
+                                    <div
+                                        ref={provided.innerRef}
+                                        {...provided.droppableProps}
+                                    >
+                                        <ListGroup>
+                                            {washGroups.map((group, index) => (
+                                                <Draggable
+                                                    key={group.id}
+                                                    draggableId={group.id}
+                                                    index={index}
+                                                >
+                                                    {(provided, snapshot) => (
+                                                        <ListGroup.Item
+                                                            ref={provided.innerRef}
+                                                            {...provided.draggableProps}
+                                                            action
+                                                            active={selectedGroup && selectedGroup.id === group.id}
+                                                            onClick={() => setSelectedGroup(group)}
+                                                            className="mb-2 position-relative"
                                                             style={{
-                                                                top: '50%',
-                                                                left: '8px',
-                                                                transform: 'translateY(-50%)',
-                                                                cursor: 'grab',
-                                                                color: selectedGroup && selectedGroup.id === group.id ? 'rgba(255,255,255,0.7)' : '#6c757d',
+                                                                ...provided.draggableProps.style,
+                                                                backgroundColor: selectedGroup && selectedGroup.id === group.id ? '#007bff' : '#f8f9fa',
+                                                                color: selectedGroup && selectedGroup.id === group.id ? 'white' : 'inherit',
+                                                                borderRadius: '8px',
+                                                                padding: '10px 12px',
+                                                                border: selectedGroup && selectedGroup.id === group.id ? 'none' : '1px solid #dee2e6',
+                                                                boxShadow: snapshot.isDragging ? '0 4px 8px rgba(0,0,0,0.1)' : (selectedGroup && selectedGroup.id === group.id ? '0 2px 5px rgba(0,123,255,0.3)' : 'none')
                                                             }}
                                                         >
-                                                            <FaBars size="0.8em" />
-                                                        </div>
-
-                                                        <div style={{ paddingLeft: '16px', paddingRight: '60px' }}>
-                                                            <div className="fw-bold text-truncate">{group.name}</div>
-                                                            <Badge
-                                                                bg={selectedGroup && selectedGroup.id === group.id ? "light" : "primary"}
-                                                                text={selectedGroup && selectedGroup.id === group.id ? "dark" : ""}
-                                                                pill
-                                                                style={{ fontSize: '0.7rem' }}
-                                                            >
-                                                                {group.items ? group.items.length : 0} 項目
-                                                            </Badge>
-                                                        </div>
-
-                                                        <div className="position-absolute" style={{ top: '50%', right: '8px', transform: 'translateY(-50%)', display: 'flex' }}>
-                                                            <Button
-                                                                variant={selectedGroup && selectedGroup.id === group.id ? "light" : "outline-primary"}
-                                                                size="sm"
-                                                                className="me-1 p-1"
+                                                            <div
+                                                                {...provided.dragHandleProps}
+                                                                className="position-absolute"
                                                                 style={{
-                                                                    fontSize: '0.7rem',
-                                                                    width: '24px',
-                                                                    height: '24px',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    opacity: selectedGroup && selectedGroup.id === group.id ? 0.9 : 0.7
-                                                                }}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleEditGroup(group);
+                                                                    top: '50%',
+                                                                    left: '8px',
+                                                                    transform: 'translateY(-50%)',
+                                                                    cursor: 'grab',
+                                                                    color: selectedGroup && selectedGroup.id === group.id ? 'rgba(255,255,255,0.7)' : '#6c757d',
                                                                 }}
                                                             >
-                                                                <FaPen size="0.7em" />
-                                                            </Button>
-                                                            <Button
-                                                                variant={selectedGroup && selectedGroup.id === group.id ? "light" : "outline-danger"}
-                                                                size="sm"
-                                                                className="p-1"
-                                                                style={{
-                                                                    fontSize: '0.7rem',
-                                                                    width: '24px',
-                                                                    height: '24px',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    opacity: selectedGroup && selectedGroup.id === group.id ? 0.9 : 0.7
-                                                                }}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleDeleteGroup(group.id);
-                                                                }}
-                                                            >
-                                                                <FaTrash size="0.7em" />
-                                                            </Button>
-                                                        </div>
-                                                    </ListGroup.Item>
-                                                )}
-                                            </Draggable>
-                                        ))}
-                                        {provided.placeholder}
-                                    </ListGroup>
-                                </div>
+                                                                <FaBars size="0.8em" />
+                                                            </div>
+
+                                                            <div style={{ paddingLeft: '16px', paddingRight: '60px' }}>
+                                                                <div className="fw-bold text-truncate">{group.name}</div>
+                                                                <Badge
+                                                                    bg={selectedGroup && selectedGroup.id === group.id ? "light" : "primary"}
+                                                                    text={selectedGroup && selectedGroup.id === group.id ? "dark" : ""}
+                                                                    pill
+                                                                    style={{ fontSize: '0.7rem' }}
+                                                                >
+                                                                    {group.items ? group.items.length : 0} 項目
+                                                                </Badge>
+                                                            </div>
+
+                                                            <div className="position-absolute" style={{ top: '50%', right: '8px', transform: 'translateY(-50%)', display: 'flex' }}>
+                                                                <Button
+                                                                    variant={selectedGroup && selectedGroup.id === group.id ? "light" : "outline-primary"}
+                                                                    size="sm"
+                                                                    className="me-1 p-1"
+                                                                    style={{
+                                                                        fontSize: '0.7rem',
+                                                                        width: '24px',
+                                                                        height: '24px',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        opacity: selectedGroup && selectedGroup.id === group.id ? 0.9 : 0.7
+                                                                    }}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleEditGroup(group);
+                                                                    }}
+                                                                >
+                                                                    <FaPen size="0.7em" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant={selectedGroup && selectedGroup.id === group.id ? "light" : "outline-danger"}
+                                                                    size="sm"
+                                                                    className="p-1"
+                                                                    style={{
+                                                                        fontSize: '0.7rem',
+                                                                        width: '24px',
+                                                                        height: '24px',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        opacity: selectedGroup && selectedGroup.id === group.id ? 0.9 : 0.7
+                                                                    }}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteGroup(group.id);
+                                                                    }}
+                                                                >
+                                                                    <FaTrash size="0.7em" />
+                                                                </Button>
+                                                            </div>
+                                                        </ListGroup.Item>
+                                                    )}
+                                                </Draggable>
+                                            ))}
+                                            {provided.placeholder}
+                                        </ListGroup>
+                                    </div>
+                                )}
+                            </StrictModeDroppable>
+                        </DragDropContext>
+                    </div>
+
+                    {/* 項目列表 */}
+                    <div style={{ flex: 1 }}>
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                            <h5>服務項目</h5>
+                            {selectedGroup && (
+                                <Badge bg="primary" pill>
+                                    已選擇分組: {selectedGroup.name}
+                                </Badge>
                             )}
-                        </StrictModeDroppable>
-                    </DragDropContext>
-                </div>
-
-                {/* 項目列表 */}
-                <div style={{ flex: 1 }}>
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h5>服務項目</h5>
-                        {selectedGroup && (
-                            <Badge bg="primary" pill>
-                                已選擇分組: {selectedGroup.name}
-                            </Badge>
+                        </div>
+                        {selectedGroup ? (
+                            renderItemsList()
+                        ) : (
+                            <Card body className="text-center">
+                                請從左側選擇一個分組，以管理其中的項目
+                            </Card>
                         )}
                     </div>
-                    {selectedGroup ? (
-                        renderItemsList()
-                    ) : (
-                        <Card body className="text-center">
-                            請從左側選擇一個分組，以管理其中的項目
-                        </Card>
-                    )}
                 </div>
             </div>
 

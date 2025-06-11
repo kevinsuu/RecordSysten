@@ -719,7 +719,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                                             </InputGroup.Text>
                                             <Form.Control
                                                 type="text"
-                                                placeholder="輸入名稱或ID搜尋..."
+                                                placeholder="輸入名稱或編號搜尋..."
                                                 value={searchTerm}
                                                 onChange={(e) => setSearchTerm(e.target.value)}
                                             />
@@ -769,8 +769,8 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                                                             }}
                                                         >
                                                             <div className="d-flex align-items-center overflow-hidden" style={{ flex: '1' }}>
-                                                                <span className="fw-bold text-truncate" title={item.name}>
-                                                                    {item.name}
+                                                                <span className="fw-bold text-truncate" title={`${item.name} (編號: ${item.id})`}>
+                                                                    {item.name} {item.id && <small className="text-muted">#{item.id}</small>}
                                                                 </span>
                                                             </div>
                                                             <div className="d-flex align-items-center ms-1">
@@ -846,7 +846,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                                                         >
                                                             <div className="d-flex align-items-center overflow-hidden" style={{ flex: '1' }}>
                                                                 <span className={`${isSelected ? 'fw-bold' : ''} text-truncate`} title={`${item.name} (ID: ${item.id})`}>
-                                                                    {item.name}
+                                                                    {item.name} <small className="text-muted">#{item.id}</small>
                                                                 </span>
                                                                 {isSelected && (
                                                                     <Badge bg="primary" className="ms-1" style={{ minWidth: '22px', height: '22px' }}>

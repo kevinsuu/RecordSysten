@@ -53,12 +53,17 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
 
     // 從data初始化vehicles
     useEffect(() => {
+        console.log('VehicleManager - 當前公司ID:', companyId);
+
         if (data && data.companies && data.companies[companyId] && data.companies[companyId].vehicles) {
             const vehiclesArray = Object.entries(data.companies[companyId].vehicles || {})
                 .sort((a, b) => (a[1].sort_index || Infinity) - (b[1].sort_index || Infinity))
                 .map(([id, vehicle]) => ({ id, ...vehicle }));
             setVehicles(vehiclesArray);
+            console.log('已載入車輛數據:', vehiclesArray.length, '輛車');
         } else {
+            console.log('沒有找到公司的車輛數據。公司ID:', companyId);
+            console.log('可用的公司:', data?.companies ? Object.keys(data.companies) : '無');
             setVehicles([]);
         }
     }, [data, companyId]);
@@ -135,8 +140,17 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
             return;
         }
 
+        if (!companyId || companyId === 'all') {
+            setError('未選擇公司或公司ID無效');
+            console.error('添加車輛錯誤: 公司ID無效', companyId);
+            showNotification('未選擇公司或公司ID無效', 'error');
+            return;
+        }
+
         setError('');
         try {
+            console.log('正在添加車輛到公司:', companyId);
+
             // 檢查是否已存在相同車牌
             const existingVehicle = vehicles.find(v => v.plate === plate.trim());
             if (existingVehicle) {
@@ -156,6 +170,7 @@ const VehicleManager = ({ data, companyId, setData, database, onSave }) => {
 
             // 更新 Firebase
             await set(newVehicleRef, newVehicle);
+            console.log('車輛數據已保存到 Firebase, 路徑:', `companies/${companyId}/vehicles/${newVehicleRef.key}`);
 
             // 更新本地狀態
             const updatedVehicle = { id: newVehicleRef.key, ...newVehicle };

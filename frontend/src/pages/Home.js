@@ -331,6 +331,29 @@ function Home() {
         loadData();
     }, [loadData]);
 
+    // 打開車輛管理模態框
+    const handleOpenVehicleManager = () => {
+        if (selectedCompany === 'all') {
+            showNotification('請先選擇一個公司', 'warning');
+            return;
+        }
+
+        // 檢查公司ID是否有效
+        if (!data.companies || !data.companies[selectedCompany]) {
+            console.error('無效的公司ID:', selectedCompany);
+            showNotification('選擇的公司無效，請重新選擇', 'error');
+            return;
+        }
+
+        console.log('打開車輛管理 - 已確認公司ID有效:', selectedCompany);
+        setShowVehicleManager(true);
+    };
+
+    // 關閉車輛管理模態框
+    const handleCloseVehicleManager = () => {
+        setShowVehicleManager(false);
+    };
+
     // 監聽篩選條件變化
     useEffect(() => {
         filterRecords();
@@ -1009,13 +1032,7 @@ function Home() {
                                                         variant="light"
                                                         className="ms-2 px-2"
                                                         title="管理車輛"
-                                                        onClick={() => {
-                                                            if (selectedCompany === 'all') {
-                                                                showNotification('請先選擇一個公司', 'warning');
-                                                                return;
-                                                            }
-                                                            setShowVehicleManager(true);
-                                                        }}
+                                                        onClick={handleOpenVehicleManager}
                                                     >
                                                         <FaCog />
                                                     </Button>
@@ -1171,13 +1188,7 @@ function Home() {
                                                 variant="light"
                                                 className="ms-2 px-2"
                                                 title="管理車輛"
-                                                onClick={() => {
-                                                    if (selectedCompany === 'all') {
-                                                        showNotification('請先選擇一個公司', 'warning');
-                                                        return;
-                                                    }
-                                                    setShowVehicleManager(true);
-                                                }}
+                                                onClick={handleOpenVehicleManager}
                                             >
                                                 <FaCog />
                                             </Button>
@@ -1427,20 +1438,23 @@ function Home() {
                         {/* 車輛管理對話框 */}
                         <Modal
                             show={showVehicleManager}
-                            onHide={() => setShowVehicleManager(false)}
+                            onHide={handleCloseVehicleManager}
                             size="lg"
                             fullscreen={isMobile}
                         >
                             <Modal.Header closeButton>
-                                <Modal.Title>車輛管理</Modal.Title>
+                                <Modal.Title>車輛管理 - {data.companies?.[selectedCompany]?.name || ''}</Modal.Title>
                             </Modal.Header>
                             <Modal.Body style={{ overflow: 'hidden' }}>
-                                <VehicleManager
-                                    data={data}
-                                    setData={setData}
-                                    database={database}
-                                    onSave={onSave}
-                                />
+                                {selectedCompany && selectedCompany !== 'all' && (
+                                    <VehicleManager
+                                        data={data}
+                                        setData={setData}
+                                        database={database}
+                                        onSave={onSave}
+                                        companyId={selectedCompany}
+                                    />
+                                )}
                             </Modal.Body>
                         </Modal>
 

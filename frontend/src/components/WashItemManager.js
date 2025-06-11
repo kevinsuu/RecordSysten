@@ -383,15 +383,14 @@ const WashItemManager = ({ database, onSave }) => {
                 </Row>
             </Form>
 
-            {/* 項目列表 */}
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }}>
+            {/* 項目列表 - 使用單一滾動區域 */}
+            <div style={{ flex: 1, overflow: 'auto' }}>
                 <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
                     <StrictModeDroppable droppableId="wash-items">
                         {(provided) => (
                             <div
                                 ref={provided.innerRef}
                                 {...provided.droppableProps}
-                                style={{ minHeight: '100%' }}
                             >
                                 <ListGroup>
                                     {washItems.map((item, index) => (
