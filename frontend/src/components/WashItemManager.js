@@ -6,11 +6,30 @@ import { FaPlus, FaBars } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
+// 創建自定義拖曳樣式
+const getItemStyle = (isDragging, draggableStyle) => ({
+    ...draggableStyle,
+    userSelect: 'none',
+    backgroundColor: isDragging ? '#e9ecef' : '#f8f9fa',
+    borderRadius: '4px',
+    border: '1px solid #dee2e6',
+    padding: '6px 8px',
+    marginBottom: '4px',
+    boxShadow: isDragging ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+    // 減少向上拖曳時的阻力，避免卡住
+    transform: draggableStyle.transform,
+    // 使拖曳的項目保持在最上層
+    zIndex: isDragging ? 9999 : 1,
+    // 只對非位置屬性添加過渡效果
+    transition: draggableStyle.transition || 'background-color 0.2s ease'
+});
+
 // 解決 React 18 StrictMode 相容性問題的自定義 Droppable
-const StrictModeDroppable = ({ children, droppableId, type = "DEFAULT", direction = "vertical", ignoreContainerClipping = false, isDropDisabled = false, isCombineEnabled = false, renderClone, mode = "standard", ...props }) => {
+const StrictModeDroppable = ({ children, droppableId }) => {
     const [enabled, setEnabled] = useState(false);
 
     useEffect(() => {
+        // 直接使用 requestAnimationFrame 以確保平滑渲染
         const animation = requestAnimationFrame(() => setEnabled(true));
         return () => {
             cancelAnimationFrame(animation);
@@ -19,35 +38,26 @@ const StrictModeDroppable = ({ children, droppableId, type = "DEFAULT", directio
     }, []);
 
     if (!enabled) {
-        return null;
+        // 渲染一個佔位元素，但不要返回 null
+        return <div style={{ minHeight: "10px" }} />;
     }
 
     return (
-        <Droppable
-            droppableId={droppableId}
-            type={type}
-            direction={direction}
-            ignoreContainerClipping={ignoreContainerClipping}
-            isDropDisabled={isDropDisabled}
-            isCombineEnabled={isCombineEnabled}
-            renderClone={renderClone}
-            mode={mode}
-            {...props}
-        >
+        <Droppable droppableId={droppableId}>
             {children}
         </Droppable>
     );
 };
 
+// 清理不必要的狀態和函數
 const WashItemManager = ({ database, onSave }) => {
     const [washItems, setWashItems] = useState([]);
     const [newItemName, setNewItemName] = useState('');
     const [newItemPrice, setNewItemPrice] = useState('');
     const [newItemId, setNewItemId] = useState('');
+    const [isDragging, setIsDragging] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
-    const [lastEditedItemId, setLastEditedItemId] = useState(null);
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
@@ -66,7 +76,9 @@ const WashItemManager = ({ database, onSave }) => {
                         .map(([id, item]) => ({
                             id,
                             ...item
-                        }));
+                        }))
+                        // 依照 sort_index 由小到大排序 (0在最上面)
+                        .sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
                     setWashItems(itemsList);
                 }
             } catch (error) {
@@ -86,19 +98,33 @@ const WashItemManager = ({ database, onSave }) => {
     const saveWashItems = async (items) => {
         try {
             const washItemsRef = ref(database, 'wash_items');
-            const itemsObject = items.reduce((acc, item, index) => {
-                acc[item.id] = {
+            // 直接構建完整的物件結構
+            const itemsObject = {};
+
+            // 對每個項目設置 sort_index，確保順序與顯示一致
+            items.forEach((item, index) => {
+                itemsObject[item.id] = {
                     name: item.name,
                     price: item.price,
-                    sort_index: index
+                    sort_index: index // 索引越小越靠前
                 };
-                return acc;
-            }, {});
+            });
 
+            // 一次性寫入所有項目
             await set(washItemsRef, itemsObject);
+
             if (onSave) {
                 onSave({ reload: false });
             }
+
+            console.log('已成功保存項目排序', itemsObject);
+
+            setSnackbar({
+                open: true,
+                message: '服務項目已更新',
+                severity: 'success'
+            });
+
             return true;
         } catch (error) {
             console.error('Error saving wash items:', error);
@@ -148,28 +174,76 @@ const WashItemManager = ({ database, onSave }) => {
         const newItem = {
             id: itemId,
             name: newItemName.trim(),
-            price: price
+            price: price,
+            sort_index: 0 // 新項目放在最前面
         };
 
+        // 更新所有項目的排序索引
+        const updatedItems = washItems.map(item => ({
+            ...item,
+            sort_index: (item.sort_index || 0) + 1
+        }));
+
         // 將新項目放在最上方
-        const updatedItems = [newItem, ...washItems];
+        const finalItems = [newItem, ...updatedItems];
+        const success = await saveWashItems(finalItems);
+
+        if (success) {
+            setWashItems(finalItems);
+            setNewItemName('');
+            setNewItemPrice('');
+            setNewItemId('');
+        }
+    };
+
+    // 處理刪除項目
+    const handleDeleteItem = async (itemId) => {
+        if (!window.confirm('確定要刪除此服務項目？')) {
+            return;
+        }
+
+        const updatedItems = washItems.filter(item => item.id !== itemId);
         const success = await saveWashItems(updatedItems);
 
         if (success) {
             setWashItems(updatedItems);
-            setNewItemName('');
-            setNewItemPrice('');
-            setNewItemId('');
-            setLastEditedItemId(itemId);
+        }
+    };
 
-            // 5秒後清除高亮狀態
-            setTimeout(() => {
-                setLastEditedItemId(null);
-            }, 5000);
+    // 處理拖曳開始
+    const onDragStart = () => {
+        setIsDragging(true);
+        document.body.style.cursor = 'grabbing';
+    };
 
+    // 處理拖曳結束
+    const onDragEnd = async (result) => {
+        setIsDragging(false);
+        document.body.style.cursor = 'default';
+
+        if (!result.destination) return;
+        if (result.source.index === result.destination.index) return;
+
+        const items = Array.from(washItems);
+        const [removed] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, removed);
+
+        // 更新排序索引
+        const reorderedItems = items.map((item, index) => ({
+            ...item,
+            sort_index: index
+        }));
+
+        // 先更新本地狀態
+        setWashItems(reorderedItems);
+
+        // 保存到 Firebase
+        const success = await saveWashItems(reorderedItems);
+
+        if (success) {
             setSnackbar({
                 open: true,
-                message: '新增服務項目成功',
+                message: '服務項目順序已更新',
                 severity: 'success'
             });
         }
@@ -219,112 +293,51 @@ const WashItemManager = ({ database, onSave }) => {
             return;
         }
 
+        let updatedItems;
+
         // 如果ID已變更，需要刪除舊項目並新增一個新項目
-        if (editingItem.originalId && editingItem.id !== editingItem.originalId) {
+        if (editingItem.id !== editingItem.originalId) {
             const newItem = {
                 id: editingItem.id,
                 name: editingItem.name.trim(),
-                price: price
+                price: price,
+                sort_index: 0 // 新項目放在最前面
             };
+
+            // 更新所有項目的排序索引
+            const items = washItems
+                .filter(item => item.id !== editingItem.originalId)
+                .map(item => ({
+                    ...item,
+                    sort_index: (item.sort_index || 0) + 1
+                }));
 
             // 將新項目放在最上方
-            const updatedItems = [
-                newItem,
-                ...washItems.filter(item => item.id !== editingItem.originalId)
-            ];
-
-            const success = await saveWashItems(updatedItems);
-
-            if (success) {
-                setWashItems(updatedItems);
-                setShowEditModal(false);
-                setLastEditedItemId(editingItem.id);
-
-                // 5秒後清除高亮狀態
-                setTimeout(() => {
-                    setLastEditedItemId(null);
-                }, 5000);
-
-                setSnackbar({
-                    open: true,
-                    message: '更新服務項目成功',
-                    severity: 'success'
-                });
-            }
+            updatedItems = [newItem, ...items];
         } else {
-            // 沒有變更ID，正常更新，但將項目移至最上方
-            const updatedItem = {
-                ...editingItem,
-                name: editingItem.name.trim(),
-                price: price
-            };
-
-            // 將更新後的項目放在最上方
-            const updatedItems = [
-                updatedItem,
-                ...washItems.filter(item => item.id !== editingItem.id)
-            ];
-
-            const success = await saveWashItems(updatedItems);
-
-            if (success) {
-                setWashItems(updatedItems);
-                setShowEditModal(false);
-                setLastEditedItemId(editingItem.id);
-
-                // 5秒後清除高亮狀態
-                setTimeout(() => {
-                    setLastEditedItemId(null);
-                }, 5000);
-
-                setSnackbar({
-                    open: true,
-                    message: '更新服務項目成功',
-                    severity: 'success'
-                });
-            }
-        }
-    };
-
-    // 處理刪除項目
-    const handleDeleteItem = async (itemId) => {
-        if (!window.confirm('確定要刪除此服務項目？')) {
-            return;
+            // 沒有變更ID，保持原排序，只更新內容
+            updatedItems = washItems.map(item =>
+                item.id === editingItem.id
+                    ? {
+                        ...item,
+                        name: editingItem.name.trim(),
+                        price: price
+                    }
+                    : item
+            );
         }
 
-        const updatedItems = washItems.filter(item => item.id !== itemId);
+        // 保存更新後的項目
         const success = await saveWashItems(updatedItems);
 
         if (success) {
             setWashItems(updatedItems);
+            setShowEditModal(false);
             setSnackbar({
                 open: true,
-                message: '刪除服務項目成功',
+                message: '更新服務項目成功',
                 severity: 'success'
             });
-        }
-    };
-
-    // 處理拖曳開始
-    const onDragStart = () => {
-        setIsDragging(true);
-    };
-
-    // 處理拖曳結束
-    const onDragEnd = async (result) => {
-        setIsDragging(false);
-
-        if (!result.destination) {
-            return;
-        }
-
-        const items = Array.from(washItems);
-        const [reorderedItem] = items.splice(result.source.index, 1);
-        items.splice(result.destination.index, 0, reorderedItem);
-
-        const success = await saveWashItems(items);
-        if (success) {
-            setWashItems(items);
         }
     };
 
@@ -383,8 +396,13 @@ const WashItemManager = ({ database, onSave }) => {
                 </Row>
             </Form>
 
-            {/* 項目列表 - 使用單一滾動區域 */}
+            {/* 項目列表 */}
             <div style={{ flex: 1, overflow: 'auto' }}>
+                {isDragging && (
+                    <div className="alert alert-info mb-2 py-1 text-center">
+                        <small>拖曳進行中...放開滑鼠完成排序 (置頂的項目顯示在最上方)</small>
+                    </div>
+                )}
                 <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
                     <StrictModeDroppable droppableId="wash-items">
                         {(provided) => (
@@ -392,50 +410,46 @@ const WashItemManager = ({ database, onSave }) => {
                                 ref={provided.innerRef}
                                 {...provided.droppableProps}
                             >
-                                <ListGroup>
+                                <ListGroup className="wash-items-list">
                                     {washItems.map((item, index) => (
-                                        <Draggable
-                                            key={item.id}
-                                            draggableId={item.id}
-                                            index={index}
-                                        >
+                                        <Draggable key={item.id} draggableId={item.id} index={index}>
                                             {(provided, snapshot) => (
                                                 <ListGroup.Item
                                                     ref={provided.innerRef}
                                                     {...provided.draggableProps}
-                                                    className={`mb-2 ${snapshot.isDragging ? 'dragging' : ''}`}
-                                                    style={{
-                                                        ...provided.draggableProps.style,
-                                                        backgroundColor: lastEditedItemId === item.id ? '#d4edda' : '#f8f9fa',
-                                                        border: '1px solid ' + (lastEditedItemId === item.id ? '#c3e6cb' : '#dee2e6'),
-                                                        borderRadius: '8px',
-                                                        transition: 'background-color 0.5s ease, border-color 0.5s ease'
-                                                    }}
+                                                    className={`${snapshot.isDragging ? 'dragging' : ''}`}
+                                                    style={getItemStyle(snapshot.isDragging, provided.draggableProps.style)}
                                                 >
-                                                    <div className="d-flex align-items-center">
-                                                        <div
-                                                            {...provided.dragHandleProps}
-                                                            className="me-3"
-                                                            style={{
-                                                                cursor: 'grab',
-                                                                color: '#6c757d',
-                                                                padding: '8px',
-                                                                borderRadius: '4px',
-                                                                backgroundColor: lastEditedItemId === item.id ? '#c3e6cb' : '#e9ecef'
-                                                            }}
-                                                        >
-                                                            <FaBars />
-                                                        </div>
-                                                        <div className="flex-grow-1">
-                                                            <div className="fw-bold">{item.name}</div>
-                                                            <div className="text-muted">價格: ${item.price}</div>
-                                                            <div className="text-muted small">ID: {item.id}</div>
+                                                    <div className="d-flex justify-content-between align-items-center">
+                                                        <div className="d-flex align-items-center">
+                                                            <div
+                                                                {...provided.dragHandleProps}
+                                                                className="drag-handle me-2"
+                                                                style={{
+                                                                    cursor: snapshot.isDragging ? 'grabbing' : 'grab',
+                                                                    fontSize: '16px',
+                                                                    color: '#6c757d',
+                                                                    padding: '4px',
+                                                                    borderRadius: '4px',
+                                                                    backgroundColor: '#e9ecef',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center'
+                                                                }}
+                                                            >
+                                                                <FaBars />
+                                                            </div>
+                                                            <div>
+                                                                <strong>{item.name}</strong> - ${item.price}
+                                                                <div className="text-muted small">ID: {item.id}</div>
+                                                            </div>
                                                         </div>
                                                         <div>
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
                                                                 className="me-2"
+                                                                disabled={isDragging}
                                                                 onClick={() => handleEditItem(item)}
                                                             >
                                                                 編輯
@@ -443,6 +457,7 @@ const WashItemManager = ({ database, onSave }) => {
                                                             <Button
                                                                 variant="outline-danger"
                                                                 size="sm"
+                                                                disabled={isDragging}
                                                                 onClick={() => handleDeleteItem(item.id)}
                                                             >
                                                                 刪除
@@ -507,9 +522,9 @@ const WashItemManager = ({ database, onSave }) => {
             {/* 通知 */}
             <Snackbar
                 open={snackbar.open}
-                autoHideDuration={5000}
+                autoHideDuration={3000}
                 onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             >
                 <Alert
                     onClose={handleCloseSnackbar}

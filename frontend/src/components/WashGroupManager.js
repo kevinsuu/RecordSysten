@@ -18,6 +18,7 @@ const StrictModeDroppable = ({ children, droppableId, type = "DEFAULT", directio
     const [enabled, setEnabled] = useState(false);
 
     useEffect(() => {
+        // 直接使用 requestAnimationFrame 以確保平滑渲染
         const animation = requestAnimationFrame(() => setEnabled(true));
         return () => {
             cancelAnimationFrame(animation);
@@ -26,7 +27,8 @@ const StrictModeDroppable = ({ children, droppableId, type = "DEFAULT", directio
     }, []);
 
     if (!enabled) {
-        return null;
+        // 渲染一個佔位元素，但不要返回 null
+        return <div style={{ minHeight: "10px" }} />;
     }
 
     return (
@@ -45,6 +47,25 @@ const StrictModeDroppable = ({ children, droppableId, type = "DEFAULT", directio
         </Droppable>
     );
 };
+
+// 獲取拖曳項目的樣式
+const getGroupItemStyle = (isDragging, draggableStyle, isActive) => ({
+    ...draggableStyle,
+    userSelect: 'none',
+    backgroundColor: isActive ? '#007bff' : (isDragging ? '#e9ecef' : '#f8f9fa'),
+    color: isActive ? 'white' : 'inherit',
+    borderRadius: '8px',
+    padding: '8px 10px',
+    marginBottom: '4px',
+    border: isActive ? 'none' : '1px solid #dee2e6',
+    boxShadow: isDragging ? '0 4px 8px rgba(0,0,0,0.15)' : (isActive ? '0 2px 5px rgba(0,123,255,0.3)' : 'none'),
+    // 減少向上拖曳時的阻力，避免卡住
+    transform: draggableStyle.transform,
+    // 使拖曳的項目保持在最上層
+    zIndex: isDragging ? 9999 : 1,
+    // 只對非位置屬性添加過渡效果
+    transition: draggableStyle.transition || 'background-color 0.2s ease'
+});
 
 const WashGroupManager = ({ database, onSave }) => {
     const [washGroups, setWashGroups] = useState([]);
@@ -82,6 +103,7 @@ const WashGroupManager = ({ database, onSave }) => {
                             id,
                             ...group
                         }))
+                        // 依照 sort_index 由小到大排序
                         .sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
                     setWashGroups(groupsList);
 
@@ -106,23 +128,29 @@ const WashGroupManager = ({ database, onSave }) => {
     // 儲存分組順序
     const saveGroupsOrder = async (groups) => {
         try {
-            // 更新每個分組的 sort_index
+            // 構建整個 wash_groups 對象
+            const groupsObject = {};
+
             for (let i = 0; i < groups.length; i++) {
                 const group = groups[i];
-                const groupRef = ref(database, `wash_groups/${group.id}`);
-
-                // 獲取當前分組數據
-                const snapshot = await get(groupRef);
-                if (snapshot.exists()) {
-                    const currentData = snapshot.val();
-
-                    // 更新 sort_index
-                    await set(groupRef, {
-                        ...currentData,
-                        sort_index: i
-                    });
-                }
+                // 複製原始數據並更新 sort_index
+                groupsObject[group.id] = {
+                    name: group.name,
+                    items: group.items || [],
+                    sort_index: i // 索引越小越靠前
+                };
             }
+
+            // 一次性更新所有分組
+            const washGroupsRef = ref(database, 'wash_groups');
+            await set(washGroupsRef, groupsObject);
+
+            // 通知父組件
+            if (onSave) {
+                onSave({ reload: false });
+            }
+
+            console.log('成功更新分組排序', groupsObject);
 
             return true;
         } catch (error) {
@@ -575,31 +603,29 @@ const WashGroupManager = ({ database, onSave }) => {
                                                             active={selectedGroup && selectedGroup.id === group.id}
                                                             onClick={() => setSelectedGroup(group)}
                                                             className="mb-2 position-relative"
-                                                            style={{
-                                                                ...provided.draggableProps.style,
-                                                                backgroundColor: selectedGroup && selectedGroup.id === group.id ? '#007bff' : '#f8f9fa',
-                                                                color: selectedGroup && selectedGroup.id === group.id ? 'white' : 'inherit',
-                                                                borderRadius: '8px',
-                                                                padding: '10px 12px',
-                                                                border: selectedGroup && selectedGroup.id === group.id ? 'none' : '1px solid #dee2e6',
-                                                                boxShadow: snapshot.isDragging ? '0 4px 8px rgba(0,0,0,0.1)' : (selectedGroup && selectedGroup.id === group.id ? '0 2px 5px rgba(0,123,255,0.3)' : 'none')
-                                                            }}
+                                                            style={getGroupItemStyle(
+                                                                snapshot.isDragging,
+                                                                provided.draggableProps.style,
+                                                                selectedGroup && selectedGroup.id === group.id
+                                                            )}
                                                         >
                                                             <div
                                                                 {...provided.dragHandleProps}
                                                                 className="position-absolute"
                                                                 style={{
                                                                     top: '50%',
-                                                                    left: '8px',
+                                                                    left: '6px',
                                                                     transform: 'translateY(-50%)',
-                                                                    cursor: 'grab',
+                                                                    cursor: snapshot.isDragging ? 'grabbing' : 'grab',
                                                                     color: selectedGroup && selectedGroup.id === group.id ? 'rgba(255,255,255,0.7)' : '#6c757d',
+                                                                    fontSize: '0.8em',
+                                                                    padding: '2px'
                                                                 }}
                                                             >
-                                                                <FaBars size="0.8em" />
+                                                                <FaBars />
                                                             </div>
 
-                                                            <div style={{ paddingLeft: '16px', paddingRight: '60px' }}>
+                                                            <div style={{ paddingLeft: '14px', paddingRight: '55px' }}>
                                                                 <div className="fw-bold text-truncate">{group.name}</div>
                                                                 <Badge
                                                                     bg={selectedGroup && selectedGroup.id === group.id ? "light" : "primary"}
@@ -611,20 +637,21 @@ const WashGroupManager = ({ database, onSave }) => {
                                                                 </Badge>
                                                             </div>
 
-                                                            <div className="position-absolute" style={{ top: '50%', right: '8px', transform: 'translateY(-50%)', display: 'flex' }}>
+                                                            <div className="position-absolute" style={{ top: '50%', right: '6px', transform: 'translateY(-50%)', display: 'flex' }}>
                                                                 <Button
                                                                     variant={selectedGroup && selectedGroup.id === group.id ? "light" : "outline-primary"}
                                                                     size="sm"
                                                                     className="me-1 p-1"
                                                                     style={{
                                                                         fontSize: '0.7rem',
-                                                                        width: '24px',
-                                                                        height: '24px',
+                                                                        width: '20px',
+                                                                        height: '20px',
                                                                         display: 'flex',
                                                                         alignItems: 'center',
                                                                         justifyContent: 'center',
                                                                         opacity: selectedGroup && selectedGroup.id === group.id ? 0.9 : 0.7
                                                                     }}
+                                                                    disabled={isDragging}
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         handleEditGroup(group);
@@ -638,13 +665,14 @@ const WashGroupManager = ({ database, onSave }) => {
                                                                     className="p-1"
                                                                     style={{
                                                                         fontSize: '0.7rem',
-                                                                        width: '24px',
-                                                                        height: '24px',
+                                                                        width: '20px',
+                                                                        height: '20px',
                                                                         display: 'flex',
                                                                         alignItems: 'center',
                                                                         justifyContent: 'center',
                                                                         opacity: selectedGroup && selectedGroup.id === group.id ? 0.9 : 0.7
                                                                     }}
+                                                                    disabled={isDragging}
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         handleDeleteGroup(group.id);
