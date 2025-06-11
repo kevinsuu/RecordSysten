@@ -42,6 +42,8 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
     const [adjustmentItems, setAdjustmentItems] = useState([]); // 新增校正項目的state
     const [adjustmentName, setAdjustmentName] = useState('');
     const [adjustmentAmount, setAdjustmentAmount] = useState('');
+    const [washGroups, setWashGroups] = useState([]);
+    const [selectedWashGroup, setSelectedWashGroup] = useState(null);
 
     // 通知狀態
     const [snackbar, setSnackbar] = useState({
@@ -126,32 +128,62 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
             borderRadius: "6px",
             marginBottom: "0.5rem",
             boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+        },
+        calendarIcon: {
+            position: "absolute",
+            right: "10px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            pointerEvents: "none",
+            color: "#6c757d"
         }
     };
 
     // 載入洗車項目
     useEffect(() => {
-        const washItemsRef = ref(database, 'wash_items');
+        const fetchData = async () => {
+            try {
+                // 載入洗車項目
+                const washItemsRef = ref(database, 'wash_items');
+                const itemsSnapshot = await get(washItemsRef);
 
-        const unsubscribe = onValue(washItemsRef, (snapshot) => {
+                if (itemsSnapshot.exists()) {
+                    const items = itemsSnapshot.val();
+                    const itemsArray = Object.entries(items).map(([id, item]) => ({
+                        id,
+                        ...item
+                    }));
+                    setWashItems(itemsArray);
+                } else {
+                    setWashItems([]);
+                }
 
-            if (snapshot.exists()) {
-                const items = snapshot.val();
-                const itemsArray = Object.entries(items).map(([id, item]) => ({
-                    id,
-                    ...item
-                }));
-                setWashItems(itemsArray);
-            } else {
-                setWashItems([]);
+                // 載入洗車分組
+                const washGroupsRef = ref(database, 'wash_groups');
+                const groupsSnapshot = await get(washGroupsRef);
+
+                if (groupsSnapshot.exists()) {
+                    const groups = groupsSnapshot.val();
+                    const groupsArray = Object.entries(groups).map(([id, group]) => ({
+                        id,
+                        ...group
+                    }));
+                    setWashGroups(groupsArray);
+
+                    // 自動選擇第一個分組
+                    if (groupsArray.length > 0) {
+                        setSelectedWashGroup(groupsArray[0]);
+                    }
+                } else {
+                    setWashGroups([]);
+                }
+            } catch (error) {
+                console.error('載入數據時發生錯誤:', error);
+                showNotification('載入數據失敗', 'error');
             }
-        }, (error) => {
-            console.error('載入服務項目時發生錯誤:', error);
-            showNotification('載入服務項目失敗', 'error');
-            setWashItems([]);
-        });
+        };
 
-        return () => unsubscribe();
+        fetchData();
     }, [database]);
 
     // 轉換公司數據為 react-select 格式
@@ -172,12 +204,46 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
             }))
         : [];
 
+    // 處理選擇洗車分組
+    const handleGroupChange = (groupId) => {
+        if (!groupId) {
+            setSelectedWashGroup(null);
+            return;
+        }
+
+        const group = washGroups.find(g => g.id === groupId);
+        if (group) {
+            setSelectedWashGroup(group);
+        }
+    };
+
+    // 獲取分組中的項目
+    const getGroupItems = () => {
+        if (!selectedWashGroup || !selectedWashGroup.items || !washItems.length) {
+            return [];
+        }
+
+        return washItems.filter(item => selectedWashGroup.items.includes(item.id));
+    };
+
+    // 根據分組過濾洗車項目
+    const filteredWashItems = selectedWashGroup ? getGroupItems() : washItems;
+
     // 轉換服務項目為 react-select 格式
-    const washItemOptions = washItems.map((item, index) => ({
+    const washItemOptions = filteredWashItems.map((item, index) => ({
         value: index,
         label: `${formatWashItemName(item)} - $${formatWashItemPrice(item)}`,
         item: item
     }));
+
+    // 轉換分組為下拉選單格式
+    const groupOptions = [
+        { value: '', label: '全部項目' },
+        ...washGroups.map(group => ({
+            value: group.id,
+            label: `${group.name} (${group.items?.length || 0} 項)`
+        }))
+    ];
 
     // 自定義 Select 樣式
     const selectStyles = {
@@ -547,111 +613,90 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                                 )}
                             </Form.Group>
 
-                            {/* 日期選擇 */}
-                            <Form.Group className="mb-3">
-                                <Form.Label style={styles.formLabel}>日期</Form.Label>
-                                <div style={styles.datePickerWrapper}>
-                                    <DatePicker
-                                        selected={date}
-                                        onChange={date => setDate(date)}
-                                        className="form-control"
-                                        dateFormat="yyyy-MM-dd"
-                                        style={styles.formControl}
-                                    />
-                                    <FaCalendarAlt style={styles.datePickerIcon} />
-                                </div>
-                            </Form.Group>
-
-                            {/* 應付/應收選擇 */}
-                            <Form.Group className="mb-0">
-                                <Form.Label style={styles.formLabel}>類型</Form.Label>
-                                <div className="d-flex">
-                                    <Form.Check
-                                        type="radio"
-                                        label="應收廠商"
-                                        name="paymentType"
-                                        id="receivable"
-                                        checked={paymentType === 'receivable'}
-                                        onChange={() => setPaymentType('receivable')}
-                                        className="me-4"
-                                    />
-                                    <Form.Check
-                                        type="radio"
-                                        label="應付廠商"
-                                        name="paymentType"
-                                        id="payable"
-                                        checked={paymentType === 'payable'}
-                                        onChange={() => setPaymentType('payable')}
-                                    />
-                                </div>
-                            </Form.Group>
-                        </div>
-
-                        {/* 服務項目區塊 */}
-                        <div style={{
-                            ...styles.cardSection,
-                            position: 'relative',
-                            zIndex: 2
-                        }}>
-                            <h6 className="mb-3 text-muted">服務項目</h6>
-
-                            {/* 已選項目顯示 */}
-                            <div className="selected-items-container mb-3">
-                                {selectedItems.map((item) => (
-                                    <div
-                                        key={item.id || item.name}
-                                        className="selected-item-tag d-inline-flex align-items-center me-2 mb-2 px-3 py-2 bg-light rounded"
-                                    >
-                                        <span>{item.name}</span>
-                                        <div className="ms-2 d-flex align-items-center">
-                                            <Button
-                                                variant="outline-secondary"
-                                                size="sm"
-                                                className="p-0 px-2 me-1"
-                                                onClick={() => handleQuantityChange(item.id || item.name, -1)}
-                                            >
-                                                -
-                                            </Button>
-                                            <span className="mx-1">{item.quantity || 1}</span>
-                                            <Button
-                                                variant="outline-secondary"
-                                                size="sm"
-                                                className="p-0 px-2 ms-1 me-2"
-                                                onClick={() => handleQuantityChange(item.id || item.name, 1)}
-                                            >
-                                                +
-                                            </Button>
-                                            <span className="me-2">${(item.originalPrice || item.price) * (item.quantity || 1)}</span>
-                                            <Button
-                                                variant="link"
-                                                className="p-0 text-danger"
-                                                onClick={() => handleItemDelete(item.id || item.name)}
-                                                style={{ textDecoration: 'none' }}
-                                            >
-                                                ×
-                                            </Button>
+                            {/* 日期與收付款方式 */}
+                            <Row className="mb-3">
+                                <Col xs={12} md={6}>
+                                    <Form.Group controlId="recordDate">
+                                        <Form.Label>日期</Form.Label>
+                                        <div className="position-relative">
+                                            <DatePicker
+                                                selected={date}
+                                                onChange={(date) => setDate(date)}
+                                                dateFormat="yyyy-MM-dd"
+                                                className="form-control"
+                                                placeholderText="選擇日期..."
+                                            />
+                                            <FaCalendarAlt style={styles.calendarIcon} />
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    </Form.Group>
+                                </Col>
+                                <Col xs={12} md={6}>
+                                    <Form.Group controlId="paymentType">
+                                        <Form.Label>收付款方式</Form.Label>
+                                        <div>
+                                            <Form.Check
+                                                inline
+                                                type="radio"
+                                                label="應收款項"
+                                                name="paymentType"
+                                                id="receivable"
+                                                checked={paymentType === 'receivable'}
+                                                onChange={() => setPaymentType('receivable')}
+                                            />
+                                            <Form.Check
+                                                inline
+                                                type="radio"
+                                                label="應付款項"
+                                                name="paymentType"
+                                                id="payable"
+                                                checked={paymentType === 'payable'}
+                                                onChange={() => setPaymentType('payable')}
+                                            />
+                                        </div>
+                                    </Form.Group>
+                                </Col>
+                            </Row>
 
-                            {/* 服務項目選擇區域 */}
-                            <div
-                                className="wash-items-container border rounded p-2"
-                                style={{ maxHeight: '200px', overflowY: 'auto' }}
-                            >
-                                {Array.isArray(washItems) && washItems.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        className="wash-item py-2 px-3 mb-1 d-flex justify-content-between align-items-center hover-highlight cursor-pointer"
-                                        onClick={() => handleItemClick(item)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <span>{item.name}</span>
-                                        <span>${item.price}</span>
-                                    </div>
-                                ))}
-                            </div>
+                            {/* 選擇分組 */}
+                            <Row className="mb-3">
+                                <Col xs={12}>
+                                    <Form.Group controlId="groupSelect">
+                                        <Form.Label>服務分組</Form.Label>
+                                        <Select
+                                            options={groupOptions}
+                                            value={groupOptions.find(option => option.value === (selectedWashGroup?.id || '')) || groupOptions[0]}
+                                            onChange={(selected) => handleGroupChange(selected ? selected.value : '')}
+                                            placeholder="選擇分組..."
+                                            styles={selectStyles}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+
+                            {/* 洗車服務項目 */}
+                            <Row className="mb-3">
+                                <Col xs={12}>
+                                    <Form.Group controlId="washItems">
+                                        <Form.Label>服務項目</Form.Label>
+                                        <div
+                                            className="wash-items-container border rounded p-2"
+                                            style={{ maxHeight: '200px', overflowY: 'auto' }}
+                                        >
+                                            {Array.isArray(washItems) && washItems.map((item) => (
+                                                <div
+                                                    key={item.id}
+                                                    className="wash-item py-2 px-3 mb-1 d-flex justify-content-between align-items-center hover-highlight cursor-pointer"
+                                                    onClick={() => handleItemClick(item)}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <span>{item.name}</span>
+                                                    <span>${item.price}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Form.Group>
+                                </Col>
+                            </Row>
 
                             {/* 金額總計 */}
                             <div className="mt-4 d-flex justify-content-between align-items-center p-2 bg-white rounded">

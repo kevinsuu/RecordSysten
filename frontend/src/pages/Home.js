@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Row, Col, Button, Form, Table, Modal, Navbar, Nav, Pagination } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
-import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt, FaCalculator } from 'react-icons/fa';
+import { FaCog, FaFileExcel, FaSignOutAlt, FaListAlt, FaCalculator, FaLayerGroup } from 'react-icons/fa';
 import { utils, writeFile } from 'xlsx';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -9,6 +9,7 @@ import CompanyManager from '../components/CompanyManager';
 import VehicleManager from '../components/VehicleManager';
 import AddRecordForm from '../components/AddRecordForm';
 import WashItemManager from '../components/WashItemManager';
+import WashGroupManager from '../components/WashGroupManager';
 import * as firebaseService from '../services/firebase';
 import { database } from '../services/firebase';
 import { getAuth, signOut } from 'firebase/auth';
@@ -45,6 +46,7 @@ function Home() {
     const [showVehicleManager, setShowVehicleManager] = useState(false);
     const [showAddRecord, setShowAddRecord] = useState(false);
     const [showWashItemManager, setShowWashItemManager] = useState(false);
+    const [showWashGroupManager, setShowWashGroupManager] = useState(false);
     const [editingRecord, setEditingRecord] = useState(null);
 
     // 添加通知狀態
@@ -902,7 +904,6 @@ function Home() {
 
     return (
         <>
-            {/* 導航欄 */}
             <Navbar bg="light" expand="lg" className="mb-3 sticky-top">
                 <Container fluid>
                     <Navbar.Brand>記錄系統</Navbar.Brand>
@@ -914,6 +915,9 @@ function Home() {
                             </Nav.Link>
                             <Nav.Link onClick={() => setShowWashItemManager(true)} className="d-flex align-items-center me-3">
                                 <FaListAlt className="me-1" /> 服務項目管理
+                            </Nav.Link>
+                            <Nav.Link onClick={() => setShowWashGroupManager(true)} className="d-flex align-items-center me-3">
+                                <FaLayerGroup className="me-1" /> 服務分組
                             </Nav.Link>
                             <Nav.Link onClick={handleLogout} className="d-flex align-items-center">
                                 <FaSignOutAlt className="me-1" /> 登出
@@ -1433,7 +1437,6 @@ function Home() {
                             <Modal.Body style={{ overflow: 'hidden' }}>
                                 <VehicleManager
                                     data={data}
-                                    companyId={selectedCompany}
                                     setData={setData}
                                     database={database}
                                     onSave={onSave}
@@ -1449,7 +1452,7 @@ function Home() {
                             fullscreen={isMobile}
                         >
                             <Modal.Header closeButton>
-                                <Modal.Title>{editingRecord ? '編輯紀錄' : '新增紀錄'}</Modal.Title>
+                                <Modal.Title>{editingRecord ? '編輯記錄' : '新增記錄'}</Modal.Title>
                             </Modal.Header>
                             <Modal.Body>
                                 <AddRecordForm
@@ -1472,10 +1475,28 @@ function Home() {
                             fullscreen={isMobile}
                         >
                             <Modal.Header closeButton>
-                                <Modal.Title>服務項目管理</Modal.Title>
+                                <Modal.Title>洗車服務項目管理</Modal.Title>
                             </Modal.Header>
                             <Modal.Body>
                                 <WashItemManager
+                                    database={database}
+                                    onSave={onSave}
+                                />
+                            </Modal.Body>
+                        </Modal>
+
+                        {/* 洗車服務分組管理 */}
+                        <Modal
+                            show={showWashGroupManager}
+                            onHide={() => setShowWashGroupManager(false)}
+                            size="lg"
+                            fullscreen={isMobile}
+                        >
+                            <Modal.Header closeButton>
+                                <Modal.Title>服務分組管理</Modal.Title>
+                            </Modal.Header>
+                            <Modal.Body>
+                                <WashGroupManager
                                     database={database}
                                     onSave={onSave}
                                 />

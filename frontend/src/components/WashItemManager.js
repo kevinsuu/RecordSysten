@@ -7,7 +7,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
 // 解決 React 18 StrictMode 相容性問題的自定義 Droppable
-const StrictModeDroppable = ({ children, ...props }) => {
+const StrictModeDroppable = ({ children, droppableId, type = "DEFAULT", direction = "vertical", ignoreContainerClipping = false, isDropDisabled = false, isCombineEnabled = false, renderClone, mode = "standard", ...props }) => {
     const [enabled, setEnabled] = useState(false);
 
     useEffect(() => {
@@ -22,16 +22,32 @@ const StrictModeDroppable = ({ children, ...props }) => {
         return null;
     }
 
-    return <Droppable {...props}>{children}</Droppable>;
+    return (
+        <Droppable
+            droppableId={droppableId}
+            type={type}
+            direction={direction}
+            ignoreContainerClipping={ignoreContainerClipping}
+            isDropDisabled={isDropDisabled}
+            isCombineEnabled={isCombineEnabled}
+            renderClone={renderClone}
+            mode={mode}
+            {...props}
+        >
+            {children}
+        </Droppable>
+    );
 };
 
 const WashItemManager = ({ database, onSave }) => {
     const [washItems, setWashItems] = useState([]);
     const [newItemName, setNewItemName] = useState('');
     const [newItemPrice, setNewItemPrice] = useState('');
+    const [newItemId, setNewItemId] = useState('');
     const [editingItem, setEditingItem] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [lastEditedItemId, setLastEditedItemId] = useState(null);
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
@@ -116,19 +132,41 @@ const WashItemManager = ({ database, onSave }) => {
             return;
         }
 
+        // 使用輸入的ID或生成新ID
+        const itemId = newItemId.trim() || Date.now().toString();
+
+        // 檢查ID是否已存在
+        if (newItemId.trim() && washItems.some(item => item.id === itemId)) {
+            setSnackbar({
+                open: true,
+                message: '此ID已存在，請使用不同的ID',
+                severity: 'warning'
+            });
+            return;
+        }
+
         const newItem = {
-            id: Date.now().toString(),
+            id: itemId,
             name: newItemName.trim(),
             price: price
         };
 
-        const updatedItems = [...washItems, newItem];
+        // 將新項目放在最上方
+        const updatedItems = [newItem, ...washItems];
         const success = await saveWashItems(updatedItems);
 
         if (success) {
             setWashItems(updatedItems);
             setNewItemName('');
             setNewItemPrice('');
+            setNewItemId('');
+            setLastEditedItemId(itemId);
+
+            // 5秒後清除高亮狀態
+            setTimeout(() => {
+                setLastEditedItemId(null);
+            }, 5000);
+
             setSnackbar({
                 open: true,
                 message: '新增服務項目成功',
@@ -139,16 +177,19 @@ const WashItemManager = ({ database, onSave }) => {
 
     // 處理編輯項目
     const handleEditItem = (item) => {
-        setEditingItem(item);
+        setEditingItem({
+            ...item,
+            originalId: item.id // 保存原始ID以便檢查是否已變更
+        });
         setShowEditModal(true);
     };
 
     // 處理更新項目
     const handleUpdateItem = async () => {
-        if (!editingItem.name.trim() || !editingItem.price.toString().trim()) {
+        if (!editingItem.name.trim() || !editingItem.price.toString().trim() || !editingItem.id.trim()) {
             setSnackbar({
                 open: true,
-                message: '請填寫項目名稱和價格',
+                message: '請填寫項目ID、名稱和價格',
                 severity: 'warning'
             });
             return;
@@ -164,22 +205,84 @@ const WashItemManager = ({ database, onSave }) => {
             return;
         }
 
-        const updatedItems = washItems.map(item =>
-            item.id === editingItem.id
-                ? { ...item, name: editingItem.name.trim(), price: price }
-                : item
+        // 檢查是否有重複ID（排除自身）
+        const isDuplicateId = washItems.some(item =>
+            item.id === editingItem.id && item.id !== editingItem.originalId
         );
 
-        const success = await saveWashItems(updatedItems);
-
-        if (success) {
-            setWashItems(updatedItems);
-            setShowEditModal(false);
+        if (isDuplicateId) {
             setSnackbar({
                 open: true,
-                message: '更新服務項目成功',
-                severity: 'success'
+                message: '此ID已存在，請使用不同的ID',
+                severity: 'warning'
             });
+            return;
+        }
+
+        // 如果ID已變更，需要刪除舊項目並新增一個新項目
+        if (editingItem.originalId && editingItem.id !== editingItem.originalId) {
+            const newItem = {
+                id: editingItem.id,
+                name: editingItem.name.trim(),
+                price: price
+            };
+
+            // 將新項目放在最上方
+            const updatedItems = [
+                newItem,
+                ...washItems.filter(item => item.id !== editingItem.originalId)
+            ];
+
+            const success = await saveWashItems(updatedItems);
+
+            if (success) {
+                setWashItems(updatedItems);
+                setShowEditModal(false);
+                setLastEditedItemId(editingItem.id);
+
+                // 5秒後清除高亮狀態
+                setTimeout(() => {
+                    setLastEditedItemId(null);
+                }, 5000);
+
+                setSnackbar({
+                    open: true,
+                    message: '更新服務項目成功',
+                    severity: 'success'
+                });
+            }
+        } else {
+            // 沒有變更ID，正常更新，但將項目移至最上方
+            const updatedItem = {
+                ...editingItem,
+                name: editingItem.name.trim(),
+                price: price
+            };
+
+            // 將更新後的項目放在最上方
+            const updatedItems = [
+                updatedItem,
+                ...washItems.filter(item => item.id !== editingItem.id)
+            ];
+
+            const success = await saveWashItems(updatedItems);
+
+            if (success) {
+                setWashItems(updatedItems);
+                setShowEditModal(false);
+                setLastEditedItemId(editingItem.id);
+
+                // 5秒後清除高亮狀態
+                setTimeout(() => {
+                    setLastEditedItemId(null);
+                }, 5000);
+
+                setSnackbar({
+                    open: true,
+                    message: '更新服務項目成功',
+                    severity: 'success'
+                });
+            }
         }
     };
 
@@ -238,7 +341,17 @@ const WashItemManager = ({ database, onSave }) => {
             {/* 新增項目表單 */}
             <Form className="mb-3">
                 <Row>
-                    <Col xs={12} sm={5}>
+                    <Col xs={12} sm={3}>
+                        <Form.Group className="mb-2">
+                            <Form.Control
+                                type="text"
+                                placeholder="項目ID (選填)"
+                                value={newItemId || ''}
+                                onChange={(e) => setNewItemId(e.target.value)}
+                            />
+                        </Form.Group>
+                    </Col>
+                    <Col xs={12} sm={3}>
                         <Form.Group className="mb-2">
                             <Form.Control
                                 type="text"
@@ -248,7 +361,7 @@ const WashItemManager = ({ database, onSave }) => {
                             />
                         </Form.Group>
                     </Col>
-                    <Col xs={12} sm={4}>
+                    <Col xs={12} sm={3}>
                         <Form.Group className="mb-2">
                             <Form.Control
                                 type="number"
@@ -294,9 +407,10 @@ const WashItemManager = ({ database, onSave }) => {
                                                     className={`mb-2 ${snapshot.isDragging ? 'dragging' : ''}`}
                                                     style={{
                                                         ...provided.draggableProps.style,
-                                                        backgroundColor: '#f8f9fa',
-                                                        border: '1px solid #dee2e6',
-                                                        borderRadius: '8px'
+                                                        backgroundColor: lastEditedItemId === item.id ? '#d4edda' : '#f8f9fa',
+                                                        border: '1px solid ' + (lastEditedItemId === item.id ? '#c3e6cb' : '#dee2e6'),
+                                                        borderRadius: '8px',
+                                                        transition: 'background-color 0.5s ease, border-color 0.5s ease'
                                                     }}
                                                 >
                                                     <div className="d-flex align-items-center">
@@ -308,7 +422,7 @@ const WashItemManager = ({ database, onSave }) => {
                                                                 color: '#6c757d',
                                                                 padding: '8px',
                                                                 borderRadius: '4px',
-                                                                backgroundColor: '#e9ecef'
+                                                                backgroundColor: lastEditedItemId === item.id ? '#c3e6cb' : '#e9ecef'
                                                             }}
                                                         >
                                                             <FaBars />
@@ -316,6 +430,7 @@ const WashItemManager = ({ database, onSave }) => {
                                                         <div className="flex-grow-1">
                                                             <div className="fw-bold">{item.name}</div>
                                                             <div className="text-muted">價格: ${item.price}</div>
+                                                            <div className="text-muted small">ID: {item.id}</div>
                                                         </div>
                                                         <div>
                                                             <Button
@@ -354,6 +469,14 @@ const WashItemManager = ({ database, onSave }) => {
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>項目ID</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={editingItem?.id || ''}
+                                onChange={(e) => setEditingItem({ ...editingItem, id: e.target.value })}
+                            />
+                        </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>項目名稱</Form.Label>
                             <Form.Control

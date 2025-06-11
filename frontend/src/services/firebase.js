@@ -49,10 +49,15 @@ export const getAllData = async () => {
         const washItemsSnapshot = await get(ref(database, 'wash_items'));
         const washItems = washItemsSnapshot.val() || {};
 
+        // 獲取wash_groups資料 (如果有)
+        const washGroupsSnapshot = await get(ref(database, 'wash_groups'));
+        const washGroups = washGroupsSnapshot.val() || {};
+
         // 返回組合後的資料結構
         return {
             companies: companies,
-            wash_items: washItems
+            wash_items: washItems,
+            wash_groups: washGroups
         };
     } catch (error) {
         console.error('獲取資料時發生錯誤:', error);
@@ -268,6 +273,90 @@ export const getFormulaHistory = async () => {
         });
         // 出錯時返回空數組而不是拋出錯誤，避免頁面崩潰
         return [];
+    }
+};
+
+// 新增 wash_groups 相關功能
+export const createWashGroup = async (groupName) => {
+    try {
+        const groupId = Date.now().toString();
+        await set(ref(database, `wash_groups/${groupId}`), {
+            id: groupId,
+            name: groupName,
+            items: [],
+            sort_index: 0
+        });
+        return groupId;
+    } catch (error) {
+        console.error('建立洗車分組時發生錯誤:', error);
+        throw error;
+    }
+};
+
+export const updateWashGroup = async (groupId, groupData) => {
+    try {
+        await set(ref(database, `wash_groups/${groupId}`), groupData);
+        return true;
+    } catch (error) {
+        console.error('更新洗車分組時發生錯誤:', error);
+        throw error;
+    }
+};
+
+export const deleteWashGroup = async (groupId) => {
+    try {
+        await remove(ref(database, `wash_groups/${groupId}`));
+        return true;
+    } catch (error) {
+        console.error('刪除洗車分組時發生錯誤:', error);
+        throw error;
+    }
+};
+
+export const addItemToGroup = async (groupId, itemId) => {
+    try {
+        const groupRef = ref(database, `wash_groups/${groupId}`);
+        const snapshot = await get(groupRef);
+
+        if (snapshot.exists()) {
+            const group = snapshot.val();
+            const items = group.items || [];
+
+            // 檢查項目是否已存在於群組中
+            if (!items.includes(itemId)) {
+                items.push(itemId);
+                await set(ref(database, `wash_groups/${groupId}/items`), items);
+            }
+
+            return true;
+        }
+
+        return false;
+    } catch (error) {
+        console.error('將項目加入分組時發生錯誤:', error);
+        throw error;
+    }
+};
+
+export const removeItemFromGroup = async (groupId, itemId) => {
+    try {
+        const groupRef = ref(database, `wash_groups/${groupId}`);
+        const snapshot = await get(groupRef);
+
+        if (snapshot.exists()) {
+            const group = snapshot.val();
+            const items = group.items || [];
+
+            const updatedItems = items.filter(id => id !== itemId);
+            await set(ref(database, `wash_groups/${groupId}/items`), updatedItems);
+
+            return true;
+        }
+
+        return false;
+    } catch (error) {
+        console.error('從分組移除項目時發生錯誤:', error);
+        throw error;
     }
 };
 
