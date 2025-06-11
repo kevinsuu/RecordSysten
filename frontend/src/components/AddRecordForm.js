@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Form, Row, Col, InputGroup, Card, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Button, Form, Row, Col, InputGroup, Card, OverlayTrigger, Tooltip, Badge, ListGroup } from 'react-bootstrap';
 import { ref, set, get, onValue } from 'firebase/database';
 import DatePicker from 'react-datepicker';
-import { FaPlus, FaTrash, FaCalendarAlt, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaCalendarAlt, FaTimes, FaSearch, FaMinus, FaPlus as FaPlusCircle } from 'react-icons/fa';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Select from 'react-select';
@@ -44,6 +44,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
     const [adjustmentAmount, setAdjustmentAmount] = useState('');
     const [washGroups, setWashGroups] = useState([]);
     const [selectedWashGroup, setSelectedWashGroup] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // 通知狀態
     const [snackbar, setSnackbar] = useState({
@@ -152,7 +153,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                     const itemsArray = Object.entries(items).map(([id, item]) => ({
                         id,
                         ...item
-                    }));
+                    })).sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
                     setWashItems(itemsArray);
                 } else {
                     setWashItems([]);
@@ -167,7 +168,7 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                     const groupsArray = Object.entries(groups).map(([id, group]) => ({
                         id,
                         ...group
-                    }));
+                    })).sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
                     setWashGroups(groupsArray);
 
                     // 自動選擇第一個分組
@@ -223,7 +224,20 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
             return [];
         }
 
-        return washItems.filter(item => selectedWashGroup.items.includes(item.id));
+        // 獲取分組中的項目並保持原有排序
+        return washItems
+            .filter(item => selectedWashGroup.items.includes(item.id))
+            .sort((a, b) => {
+                // 首先檢查兩個項目是否都有 sort_index
+                if (a.sort_index !== undefined && b.sort_index !== undefined) {
+                    return a.sort_index - b.sort_index;
+                }
+                // 如果只有一個有 sort_index，有的放前面
+                if (a.sort_index !== undefined) return -1;
+                if (b.sort_index !== undefined) return 1;
+                // 兩個都沒有，保持原來的順序
+                return 0;
+            });
     };
 
     // 根據分組過濾洗車項目
@@ -505,6 +519,25 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
         }
     };
 
+    // 過濾服務項目 - 加入搜尋功能
+    const getFilteredItems = () => {
+        // 第一步：根據分組過濾項目
+        let itemsToFilter = selectedWashGroup && selectedWashGroup.items
+            ? washItems.filter(item => selectedWashGroup.items.includes(item.id))
+            : washItems;
+
+        // 第二步：根據搜尋詞過濾項目
+        if (searchTerm.trim()) {
+            const lowerSearchTerm = searchTerm.toLowerCase();
+            itemsToFilter = itemsToFilter.filter(item =>
+                item.name.toLowerCase().includes(lowerSearchTerm) ||
+                (item.id && item.id.toLowerCase().includes(lowerSearchTerm))
+            );
+        }
+
+        return itemsToFilter;
+    };
+
     // 處理項目點擊
     const handleItemClick = (selectedItem) => {
         // 使用 id 來識別項目
@@ -548,8 +581,11 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
 
     // 處理項目刪除
     const handleItemDelete = (itemId) => {
-        setSelectedItems(selectedItems.filter(item => item.id !== itemId));
+        setSelectedItems(prevItems => prevItems.filter(item => item.id !== itemId));
     };
+
+    // 獲取過濾後的項目
+    const filteredItems = getFilteredItems();
 
     return (
         <div className="add-record-form">
@@ -657,51 +693,183 @@ const AddRecordForm = ({ data, setData, database, companyId, vehicleId, editingR
                                 </Col>
                             </Row>
 
-                            {/* 選擇分組 */}
-                            <Row className="mb-3">
-                                <Col xs={12}>
+                            {/* 洗車服務項目搜尋和分組選擇 */}
+                            <Row className="mb-2">
+                                <Col xs={12} md={6}>
                                     <Form.Group controlId="groupSelect">
                                         <Form.Label>服務分組</Form.Label>
                                         <Select
                                             options={groupOptions}
                                             value={groupOptions.find(option => option.value === (selectedWashGroup?.id || '')) || groupOptions[0]}
-                                            onChange={(selected) => handleGroupChange(selected ? selected.value : '')}
+                                            onChange={(selected) => {
+                                                handleGroupChange(selected ? selected.value : '');
+                                                setSearchTerm(''); // 清空搜尋
+                                            }}
                                             placeholder="選擇分組..."
                                             styles={selectStyles}
                                         />
                                     </Form.Group>
                                 </Col>
-                            </Row>
-
-                            {/* 洗車服務項目 */}
-                            <Row className="mb-3">
-                                <Col xs={12}>
-                                    <Form.Group controlId="washItems">
-                                        <Form.Label>服務項目</Form.Label>
-                                        <div
-                                            className="wash-items-container border rounded p-2"
-                                            style={{ maxHeight: '200px', overflowY: 'auto' }}
-                                        >
-                                            {Array.isArray(washItems) && washItems.map((item) => (
-                                                <div
-                                                    key={item.id}
-                                                    className="wash-item py-2 px-3 mb-1 d-flex justify-content-between align-items-center hover-highlight cursor-pointer"
-                                                    onClick={() => handleItemClick(item)}
-                                                    style={{ cursor: 'pointer' }}
+                                <Col xs={12} md={6}>
+                                    <Form.Group controlId="searchWashItems">
+                                        <Form.Label>搜尋服務項目</Form.Label>
+                                        <InputGroup>
+                                            <InputGroup.Text>
+                                                <FaSearch />
+                                            </InputGroup.Text>
+                                            <Form.Control
+                                                type="text"
+                                                placeholder="輸入名稱或ID搜尋..."
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                            />
+                                            {searchTerm && (
+                                                <Button
+                                                    variant="outline-secondary"
+                                                    onClick={() => setSearchTerm('')}
                                                 >
-                                                    <span>{item.name}</span>
-                                                    <span>${item.price}</span>
-                                                </div>
-                                            ))}
-                                        </div>
+                                                    清除
+                                                </Button>
+                                            )}
+                                        </InputGroup>
                                     </Form.Group>
                                 </Col>
                             </Row>
 
+                            {/* 服務項目區域 */}
+                            <div className="service-selection-area" style={{ marginBottom: '15px' }}>
+                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 className="mb-0">服務項目列表</h6>
+                                    <Badge bg="secondary" pill>
+                                        {filteredItems.length} 項可選
+                                    </Badge>
+                                </div>
+
+                                {/* 已選擇的服務項目 */}
+                                {selectedItems.length > 0 && (
+                                    <div className="mb-3">
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <div className="fw-bold text-primary" style={{ fontSize: '0.9rem' }}>已選擇的項目</div>
+                                            <Badge bg="primary" pill>
+                                                共 {selectedItems.length} 項
+                                            </Badge>
+                                        </div>
+                                        <div className="selected-items-container" style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                                            <Row className="mx-0">
+                                                {selectedItems.map((item, index) => (
+                                                    <Col xs={12} md={6} key={item.id || `custom-${index}`} className="px-1 mb-1">
+                                                        <div
+                                                            className="d-flex justify-content-between align-items-center p-2"
+                                                            style={{
+                                                                backgroundColor: '#f8f9fa',
+                                                                borderRadius: '4px',
+                                                                border: '1px solid #dee2e6',
+                                                                height: '40px',
+                                                                overflow: 'hidden'
+                                                            }}
+                                                        >
+                                                            <div className="d-flex align-items-center overflow-hidden" style={{ flex: '1' }}>
+                                                                <span className="fw-bold text-truncate" title={item.name}>
+                                                                    {item.name}
+                                                                </span>
+                                                            </div>
+                                                            <div className="d-flex align-items-center ms-1">
+                                                                <Button
+                                                                    variant="outline-secondary"
+                                                                    size="sm"
+                                                                    className="p-0 d-flex align-items-center justify-content-center"
+                                                                    style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                                                                    onClick={() => handleQuantityChange(item.id, -1)}
+                                                                >
+                                                                    <FaMinus size={8} />
+                                                                </Button>
+                                                                <span className="mx-1" style={{ minWidth: '20px', textAlign: 'center' }}>{item.quantity || 1}</span>
+                                                                <Button
+                                                                    variant="outline-secondary"
+                                                                    size="sm"
+                                                                    className="p-0 d-flex align-items-center justify-content-center me-1"
+                                                                    style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                                                                    onClick={() => handleQuantityChange(item.id, 1)}
+                                                                >
+                                                                    <FaPlusCircle size={8} />
+                                                                </Button>
+                                                                <Badge bg="primary" className="me-1" style={{ minWidth: '40px' }}>
+                                                                    ${(item.price * (item.quantity || 1)).toFixed(0)}
+                                                                </Badge>
+                                                                <Button
+                                                                    variant="outline-danger"
+                                                                    size="sm"
+                                                                    className="p-0 d-flex align-items-center justify-content-center"
+                                                                    style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                                                                    onClick={() => handleItemDelete(item.id)}
+                                                                >
+                                                                    <FaTrash size={8} />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </Col>
+                                                ))}
+                                            </Row>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 洗車服務項目列表 */}
+                                <div
+                                    className="wash-items-container border rounded p-2"
+                                    style={{ maxHeight: selectedItems.length > 0 ? '200px' : '360px', overflowY: 'auto' }}
+                                >
+                                    {filteredItems.length === 0 ? (
+                                        <div className="text-center p-3 text-muted">
+                                            {searchTerm ? '沒有符合搜尋條件的項目' : '沒有可用的服務項目'}
+                                        </div>
+                                    ) : (
+                                        <Row className="mx-0">
+                                            {filteredItems.map((item) => {
+                                                const isSelected = selectedItems.some(selectedItem => selectedItem.id === item.id);
+                                                return (
+                                                    <Col xs={12} md={6} lg={4} key={item.id} className="px-1 mb-1">
+                                                        <div
+                                                            className={`wash-item py-1 px-2 d-flex justify-content-between align-items-center hover-highlight cursor-pointer ${isSelected ? 'bg-light' : ''}`}
+                                                            onClick={() => handleItemClick(item)}
+                                                            style={{
+                                                                cursor: 'pointer',
+                                                                borderLeft: isSelected ? '3px solid #0d6efd' : 'none',
+                                                                height: '40px',
+                                                                fontSize: '0.9rem',
+                                                                border: '1px solid #dee2e6',
+                                                                borderRadius: '4px',
+                                                                overflow: 'hidden',
+                                                                whiteSpace: 'nowrap',
+                                                                textOverflow: 'ellipsis'
+                                                            }}
+                                                        >
+                                                            <div className="d-flex align-items-center overflow-hidden" style={{ flex: '1' }}>
+                                                                <span className={`${isSelected ? 'fw-bold' : ''} text-truncate`} title={`${item.name} (ID: ${item.id})`}>
+                                                                    {item.name}
+                                                                </span>
+                                                                {isSelected && (
+                                                                    <Badge bg="primary" className="ms-1" style={{ minWidth: '22px', height: '22px' }}>
+                                                                        {selectedItems.find(si => si.id === item.id)?.quantity || 1}
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            <div className="ms-1 text-nowrap">
+                                                                <span className={`${isSelected ? 'fw-bold text-primary' : ''}`}>${item.price}</span>
+                                                            </div>
+                                                        </div>
+                                                    </Col>
+                                                );
+                                            })}
+                                        </Row>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* 金額總計 */}
-                            <div className="mt-4 d-flex justify-content-between align-items-center p-2 bg-white rounded">
-                                <h6 className="mb-0">金額總計</h6>
-                                <span style={styles.totalAmount}>${calculateTotal().toLocaleString()}</span>
+                            <div className="mt-3 d-flex justify-content-between align-items-center p-3 rounded" style={{ backgroundColor: '#0d6efd', color: 'white' }}>
+                                <h6 className="mb-0 fw-bold">金額總計</h6>
+                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>${calculateTotal().toLocaleString()}</span>
                             </div>
 
                             {/* 錯誤提示 */}
